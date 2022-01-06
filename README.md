@@ -12,7 +12,7 @@ Consequently, ROCkOut is not intended to perfectly replicate the original ROCker
 
 Additionally, ROCkOut is designed to support the user through visual aids and supports that make the building process friendly, rather than combatitive.
 
-* Progress report:
+# Progress report:
 
 0_download_from_uniprot - A script which downloads proteins from UniProt using their IDs and their associated data in a similar manner to the original ROCker. Initializes a project directory and organizes data. Data downloaded in this step include an annotation of each UniProt protein, a FASTA of the genome containing it, related protein sets as GFFs, and the coordinates and sequence of the target protein for each item in the positive set.
 
@@ -20,7 +20,7 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 2_tag_reads - Tags simulated reads for ROCkOut. Includes information on the origin genome of each read and their true alignment.
 
-* Plans and ideas:
+# Plans and ideas:
 
 3_align_to_refs - Builds a database from the current set of postive proteins and aligns tagged reads to the database. Not quite done.
 
