@@ -9,11 +9,12 @@ This script is a revision on the original ROCker downloading functionality.
 '''
 
 class download_manager:
-	def __init__(self, prot = None, outdir = None, my_index = 1, max_index = 1):
+	def __init__(self, prot = None, outdir = None, my_index = 1, max_index = 1, positive = False):
 		self.output = outdir
 		self.prot = prot
 		self.index = my_index
 		self.total = max_index
+		self.is_pos = positive
 
 	def check_annotation_information(self):
 		#prot = arg[0]
@@ -22,7 +23,7 @@ class download_manager:
 		url_base += self.prot
 		url_base += "/annot"
 		
-		print("Downloading", url_base, "(Protein " + str(self.index), "of", str(self.total)+", step 1 of 3)")
+		print("Downloading", url_base, "(Protein " + str(self.index), "of", str(self.total)+")")
 		#Download the annotation
 		try:
 			annot_data = requests.get(url_base)
@@ -45,31 +46,8 @@ class download_manager:
 		#Split the annotation into single lines
 		annot_data = annot_data.split('\n')
 		
-		'''
-		#We need to collect the on-target AA seqs for only the positive prots
-		
-		#Top lines of the annot file
-		ID   ERMA_STAAN              Reviewed;         243 AA.
-		AC   P0A0H2; P06699;
-		DT   01-JAN-1988, integrated into UniProtKB/Swiss-Prot.
-		DT   01-JAN-1988, sequence version 1.
-		DT   29-SEP-2021, entry version 97.
-		DE   RecName: Full=rRNA adenine N-6-methyltransferase;
-		DE            EC=2.1.1.184;
-		DE   AltName: Full=Erythromycin resistance protein;
-		DE   AltName: Full=Macrolide-lincosamide-streptogramin B resistance protein;
-			
-
-		#Name to match 
-		>UNIPROT:ERMA_STAAN P0A0H2 rRNA adenine N-6-methyltransferase (2.1.1.184) (Erythromycin resistance protein) (Macrolide-lincosamide-streptogramin B resistance protein)
-		
-		#Sequence will be buried somewhere in the GFFs and we'll have to check for the name, then the seq is under translation=...
-		
-		'''
-		
 		primary_target_name = ">UNIPROT:"
 		gff_search_name = ""
-		
 		
 		#We'll have to get the proteins listed under this annotation; this stores those prots
 		my_translations = {}
@@ -78,20 +56,35 @@ class download_manager:
 		#Parse the file
 		for line in annot_data:
 			if line.startswith("ID"):
+				#Get the primary name for this sequence. Matches this format:
+				#ID   ERMC1_STAAU             Reviewed;         244 AA.
+			
 				segs = line.strip().split()
-				gff_search_name = segs[1]
 				primary_target_name += segs[1]
 				primary_target_name += " "
 				primary_target_name += self.prot
 			if line.startswith("DE"):
 				segs = line.strip().split()
 				if segs[1] == "RecName:":
+					#Python is seeing something in this format from segs:
+					#['DE', 'RecName:', 'Full=rRNA', 'adenine', 'N-6-methyltransferase;']
+					#We need to keep an extra copy of the label for searching GFFs later
+					
+					#Remove first 2 items
 					usable = ' '.join(segs[2:])
+					#Remove "Full=..." and final semicolon
 					usable = usable[5:(len(usable)-1)]
+					
+					gff_search_name = usable
+					
 					usable = "(" + usable + ")"
 					primary_target_name += " "
 					primary_target_name += usable
 				if segs[1] == "AltName:":
+					#Same as above, but we don't need to separately keep the name
+					#Matches this format:
+					#DE   AltName: Full=Erythromycin resistance protein;
+				
 					usable = ' '.join(segs[2:])
 					usable = usable[5:(len(usable)-1)]
 					usable = "(" + usable + ")"
@@ -99,7 +92,12 @@ class download_manager:
 					primary_target_name += usable
 					
 				if segs[1].startswith("EC="):
-					usable = segs[1][3:(len(segs[1]) - 1)]
+					#Same as alt name, modified to match this format:
+					#DE            EC=2.1.1.184;
+					#There may be spaces in the EC...; section.
+					#combine
+					usable = ' '.join(segs[1:])
+					usable = usable[3:(len(usable) - 1)]
 					usable = "(" + usable + ")"
 					primary_target_name += " "
 					primary_target_name += usable
@@ -116,6 +114,7 @@ class download_manager:
 		
 		protein_listings = []
 		
+		#Create per-protein directories to organize sub-outputs
 		gffs_name = os.path.normpath(self.output + self.prot + "/gffs") + "/"
 		if not os.path.exists(gffs_name):
 			os.mkdir(gffs_name)
@@ -127,23 +126,32 @@ class download_manager:
 		genomes_name = os.path.normpath(self.output + self.prot + "/genomes") + "/"
 		if not os.path.exists(genomes_name):
 			os.mkdir(genomes_name)
+			
+		print("    Collecting additional gene information for protein " + str(self.index), "of", str(self.total)+".", str(len(additionals)), "total sources to peruse.")
+
+		winning_translation = ""
 		
+		#Process identified proteins by downloading the relevant GFF and parsing them for useful results.
 		for p in additionals:
 			
 			one_file = self.download_gffs(p, gff_search_name)
 			formatted_results = []
 			successful_tags = []
 			
+			#Record coordinates for use later.
 			fh = open(coords_name + p +"_coords.txt", "w")
 			for item_set in one_file:
 				if item_set[0] in additionals or item_set[1] in my_translations:
-					print(*item_set, file = fh)
+					this_trans = item_set[len(item_set)-1]
+					if len(this_trans) > len(winning_translation):
+						winning_translation = this_trans
+					no_trans = item_set[:-1]
+					print(*no_trans, file = fh)
 					successful_tags.append(p)
 					
 			fh.close()
 			
 			#Get the FNA from the sequences
-			print("    Collecting reference genomes for protein " + str(self.index), "of", str(self.total)+" (step 3 of 3)")
 			for tag in successful_tags:
 				try:
 					sequence = requests.get("https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta")
@@ -153,8 +161,27 @@ class download_manager:
 					fh.close()
 				except:
 					pass
-			print("    Protein", str(self.index), "complete!")
 		
+		print("    Protein", str(self.index), "complete!")
+
+		if len(winning_translation) == 0:
+			winning_translation = None	
+		#We only want the positive prots here
+		if self.is_pos:
+			#When the sequence is positive and we have a winning answer, we print the AA seq to a file.
+			if winning_translation is not None:
+				reformatted = [winning_translation[i:i+60] for i in range(0, len(winning_translation), 60)]
+				reformatted = "\n".join(reformatted)
+				target_dir_name = os.path.normpath(self.output + self.prot + "/target_protein") + "/"
+				if not os.path.exists(target_dir_name):
+					os.mkdir(target_dir_name)
+					
+				output_name = target_dir_name + self.prot + "_target_protein_AA.fasta.txt"
+				out = open(output_name, "w")
+				print(primary_target_name, file = out)
+				print(reformatted, file = out)
+				out.close()
+			
 		return None
 		
 	def download_gffs(self, prot, target):
@@ -162,9 +189,7 @@ class download_manager:
 		url_base = "https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"
 		url_base += prot
 		url_base += "/gff3"
-		
-		print("    Collecting additional gene annotations for protein " + str(self.index), "of", str(self.total)+" (step 2 of 3)")
-		
+				
 		gff_data = requests.get(url_base).content.decode()
 		
 		output_gff = self.output + self.prot + "/gffs/" + prot + ".gff3"
@@ -175,10 +200,7 @@ class download_manager:
 		
 		gff_data = gff_data.split("\n")
 		
-		#here's where we search for the target
-		
-		
-		coordinate_info = self.gff_to_coords(gff_data)
+		coordinate_info = self.gff_to_coords(gff_data, target)
 		
 		return coordinate_info
 		
@@ -189,30 +211,41 @@ class download_manager:
 		return target_seq
 		
 	#Assumes a downloaded GFF3 file that has been processed by download_gffs so that it is a list of strings with each item in the list corresponding to a line in the original GFF file.	
-	def gff_to_coords(self, gff_data):
+	def gff_to_coords(self, gff_data, target):
 		results = []
 		
 		for line in gff_data:
 			#Header lines. Skip em.
 			if line.startswith("#"):
 				continue
-			segs = line.split("\t")
+			segs = line.strip().split("\t")
 			#Skip line if the record is incomplete.
 			if len(segs) < 9:
 				continue
 				
+			#Protein sequence for the target gene or none if it's not in the GFF or is a negative sequence that we don't need.
+			target_sequence = None
+								
 			#Set these to none; they'll be filled or the none value will be used as a check.
 			prot_id, tran_id = None, None
+			trans = None
 			#The annotation chunk is a semicolon separated line of unknown length.	
 			annotation = segs[8].split(";")
 			for item in annotation:
+				if self.is_pos:
+					pass
+					#print(item)
+			
 				#The labels seem very backwards to me, but they match the original code.
 				if item.startswith("protein_id="):
 					#Tran ID is always the first thing and always starts with 'protein_id='. This extracts the segment after 'ID='
 					tran_id = item[11:]
 				if item.startswith("db_xref=UniProtKB"):
 					prot_id = item.split(":")[1]
-
+					
+				if item.startswith("translation="):
+					trans = item[12:]
+					
 			coords = [int(segs[3]), int(segs[4])]
 					
 			#Regardless of strand we go min->max as from->to
@@ -230,14 +263,7 @@ class download_manager:
 			if tran_id is None:
 				tran_id = "None"
 			
-			results.append((prot_id, tran_id, from_coord, to_coord, strand))
-			
-			#my_prot_ids.append(prot_id)
-			#my_tran_ids.append(tran_id)
-			#my_start_coordinates.append(from_coord)
-			#my_end_coordinates.append(to_coord)
-			#my_strands.append(strand)
-			#return [formatted, prot_id, tran_id, from_coord, to_coord, strand]
+			results.append((prot_id, tran_id, from_coord, to_coord, strand, trans))
 				
 		return results
 		
@@ -288,10 +314,10 @@ class uniprot_downloader:
 			
 	def prepare_directories(self):
 		if not os.path.exists(self.outdir):
-			os.mkdir(self.outdir)
+			os.mkdir(self.outdir)			
 		if len(self.positive_set) > 0:
 			if not os.path.exists(self.posdir):
-				os.mkdir(self.posdir)
+				os.mkdir(self.posdir)				
 		if len(self.negative_set) > 0:
 			if not os.path.exists(self.negdir):
 				os.mkdir(self.negdir)
@@ -300,11 +326,11 @@ class uniprot_downloader:
 		count = 1
 		total = len(self.positive_set) + len(self.negative_set)
 		for prot in self.positive_set:
-			dl = download_manager(prot, self.posdir, my_index = count, max_index = total)
+			dl = download_manager(prot, self.posdir, my_index = count, max_index = total, positive = True)
 			self.worklist.append(dl)
 			count += 1
 		for prot in self.negative_set:
-			dl = download_manager(prot, self.negdir, my_index = count, max_index = total)
+			dl = download_manager(prot, self.negdir, my_index = count, max_index = total, positive = False)
 			self.worklist.append(dl)
 			count += 1
 		
@@ -315,6 +341,8 @@ class uniprot_downloader:
 		
 		pool.close()
 		pool.join()
+		
+		
 		
 
 #This is effectively the main function here. There's probably a better way to package all of this, but it works.

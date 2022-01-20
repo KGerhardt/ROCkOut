@@ -53,6 +53,8 @@ class read_tagger:
 		
 		self.extract_from_coords()
 		
+		is_negative = ("/negative/" in self.tags)
+		
 		bbmap_match = r'SYN_(\d+)_(.+?(?=_))_(.+?(?=_))_\d_(.)_.+?(?=\.)\._(.+?(?=\$|\s)).+'
 		fh = open(self.input)
 		out = open(self.tags, 'w')
@@ -74,11 +76,14 @@ class read_tagger:
 				
 				tagged_name = ';'.join([id, str(mn), str(mx), comp, genome_id])
 				
-				if (start_window - 1) == end_window:
-					#The read falls inside a target gene window and we should tag it as on-target
-					print(">" + tagged_name + ";Target", file = out)
+				if is_negative:
+					print(">" + tagged_name + ";Negative", file = out)
 				else:
-					print(">" + tagged_name + ";Non_Target", file = out)
+					if (start_window - 1) == end_window:
+						#The read falls inside a target gene window and we should tag it as on-target
+						print(">" + tagged_name + ";Target", file = out)
+					else:
+						print(">" + tagged_name + ";Non_Target", file = out)
 				
 			else:
 				#Write seq.
