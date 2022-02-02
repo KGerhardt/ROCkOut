@@ -349,8 +349,9 @@ class uniprot_downloader:
 pos_list = sys.argv[1]
 neg_list = sys.argv[2]
 threads = sys.argv[3]
+dirname = sys.argv[4]
 
-dl = uniprot_downloader(pos_list, neg_list, threads, "rdl")
+dl = uniprot_downloader(pos_list, neg_list, threads, dirname)
 dl.prepare_directories()
 dl.prepare_downloaders()
 dl.execute_downloads()

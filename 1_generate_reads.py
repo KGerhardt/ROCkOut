@@ -48,7 +48,7 @@ class read_generator:
 		snp_rate
 		insrate
 	'''	
-	def simulate_reads_bbmap(self, cov_depth = 5.0, snp_rate = 0.1, insrate = None, delrate = None, minlen = 95, maxlen = 105):
+	def simulate_reads_bbmap(self, cov_depth = 20.0, snp_rate = 0.1, insrate = None, delrate = None, minlen = 95, maxlen = 105):
 		#Default behavior for these items is to be 5 indels : 95 SNPs
 		if insrate is None:
 			insrate = snp_rate/19
