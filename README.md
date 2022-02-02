@@ -31,3 +31,16 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 * Visual and building supports - a GUI made to allow for the interactive selection of proteins as in/out and show the resulting effect on the model would be good.
 
 * Model building - The use of a sliding window for determining the best cutoffs for a model make sense, but having to rerun that whole step to see a new window doesn't. The data should just all be loaded and sliced as needed on the interactive page.
+
+# Usage
+
+Scripts are used in their number order. You need a list of positive uniprot IDs, one per line, in a positives.txt file, negatives.txt if you want them. Usage is as follows:
+
+python 0_download_from_uniprot.py [positives.txt] [negatives.txt] [threads] [project_dir_name]
+python 1_generate_reads.py [project_dir_name] [threads]
+python 2_tag_reads.py [project_dir_name] [threads]
+python 3_align_to_refs.py [project_dir_name] [threads]
+
+Open 4_refiner.R in RStudio and run all the code.
+
+[project_dir_name] does not need to exist prior to running step 0.
