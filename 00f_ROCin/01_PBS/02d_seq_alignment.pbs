@@ -1,0 +1,23 @@
+#PBS -N ClustalO
+#PBS -l nodes=1:ppn=12
+#PBS -l mem=10gb
+#PBS -l walltime=4:00:00
+#PBS -q inferno     
+#PBS -A GT-ktk3-CODA20
+#PBS -o 00a_log/02d_ClustalO_${n}.out
+#PBS -e 00a_log/02d_ClustalO_${n}.err
+
+# This script builds the gene clusters
+cd $PBS_O_WORKDIR
+
+if [ ! -s ${verified}.aln ]
+  then
+	clustalo -i $verified -o ${verified}.aln
+fi
+
+clustalo -i $newseqs -o ${newseqs}.aln --profile1 ${verified}.aln --threads 12
+
+## Run Log:
+## qsub -v verified=,newseqs=,n= ../00b_PBS/02d_seq_alignment.pbs
+## qsub -v verified=01_Retrieved_Sequence/lnuF_OGs-rename.faa,newseqs=01_Retrieved_Sequence/LnuF_Concatenated_Deduplicated.fasta ../00b_PBS/00b_clustalo.pbs 
+## qsub -v verified=00b_curated_seqs/ncbi_refgenes_mcr_renamed_reduced.fasta,newseqs=02a_tree_prep/02_mmseqs_reps.fasta,n=mcr ../00b_PBS/02d_seq_alignment.pbs
