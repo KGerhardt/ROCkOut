@@ -3,6 +3,7 @@ import os
 import multiprocessing
 #Pip install needed
 import requests
+import shutil
 
 '''
 This script is a revision on the original ROCker downloading functionality.
@@ -10,7 +11,7 @@ This script is a revision on the original ROCker downloading functionality.
 
 class download_manager:
 	def __init__(self, prot = None, outdir = None, my_index = 1, max_index = 1, positive = False):
-		self.output = outdir
+		self.output = os.path.normpath(outdir) + "/"
 		self.prot = prot
 		self.index = my_index
 		self.total = max_index
@@ -336,15 +337,41 @@ class uniprot_downloader:
 		
 	def execute_downloads(self):
 		pool = multiprocessing.Pool(self.threads)
-		
-		pool.map(do_download, self.worklist)
-		
+		pool.imap_unordered(do_download, self.worklist)
 		pool.close()
 		pool.join()
+	
+	#Look through outputs and see if anything is empty.
+	def check_results(self):
+		for pos in self.positive_set:
+			path = os.path.normpath(self.posdir + pos + "/genomes")
+			try:
+				genome_files = os.listdir(path)
+			except:
+				genome_files = []
+			if len(genome_files) < 1:
+				print("Uniprot ID", pos, "was empty!")
+				print("This ID may have been changed or may be missing required data on Uniprot.")
+				print("Removing this positive ID from the dataset.")
+				try:
+					shutil.rmtree(os.path.normpath(self.posdir + pos))
+				except:
+					pass
+		for neg in self.negative_set:
+			path = os.path.normpath(self.negdir + neg + "/genomes")
+			try:
+				genome_files = os.listdir(path)
+			except:
+				genome_files = []
+			if len(genome_files) < 1:
+				print("Uniprot ID", neg, "was empty!")
+				print("This ID may have been changed or may be missing required data on Uniprot.")
+				print("Removing this negative ID from the dataset.")
+				try:
+					shutil.rmtree(os.path.normpath(self.negdir + neg))
+				except:
+					pass
 		
-		
-		
-
 #This is effectively the main function here. There's probably a better way to package all of this, but it works.
 pos_list = sys.argv[1]
 neg_list = sys.argv[2]
@@ -355,5 +382,7 @@ dl = uniprot_downloader(pos_list, neg_list, threads, dirname)
 dl.prepare_directories()
 dl.prepare_downloaders()
 dl.execute_downloads()
+dl.check_results()
+
 
 

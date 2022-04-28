@@ -6,6 +6,7 @@ import numpy as np
 import multiprocessing
 
 from rocker_project_manager import project_manager
+from rocker_progress_tracker import progress_tracker
 
 #Class for simulating and tagging reads in ROCker friendly format.
 class read_tagger:
@@ -28,7 +29,6 @@ class read_tagger:
 		if not os.path.exists(tagged):
 			os.mkdir(tagged)
 
-	
 	#coords file to start-end coordinates lists.
 	def extract_from_coords(self):
 		#my_coords = {}
@@ -59,8 +59,12 @@ class read_tagger:
 		fh = open(self.input)
 		out = open(self.tags, 'w')
 		in_seq = False
+		malformed = False
 		for line in fh:
 			if line.startswith(">"):
+				#Reset
+				malformed = False
+				
 				in_seq = False
 				id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
 				fr, to = int(fr), int(to)
@@ -76,6 +80,13 @@ class read_tagger:
 				
 				tagged_name = ';'.join([id, str(mn), str(mx), comp, genome_id])
 				
+				#Read is malformed for one reason or another. Skip and keep going with the others.
+				if len(tagged_name) == 0:
+					print(tagged_name)
+					#Skip writing until the next seq.
+					malformed = True
+					continue
+					
 				if is_negative:
 					print(">" + tagged_name + ";Negative", file = out)
 				else:
@@ -86,8 +97,9 @@ class read_tagger:
 						print(">" + tagged_name + ";Non_Target", file = out)
 				
 			else:
-				#Write seq.
-				out.write(line)
+				if not malformed:
+					#Write seq.
+					out.write(line)
 				
 		fh.close()
 		out.close()
@@ -103,29 +115,59 @@ except:
 def run_tagging(read_tag):
 	#read_gen.prepare_outputs()
 	read_tag.tag_bbmap_reads()
+	return read_tag.base
 
 def generate_reads(project_directory, threads):
 	rocker = project_manager(directory = project_directory, threads = threads)
 	rocker.parse_project_directory()
+	
+	#Coords currently expects 1 reads file/coords file, which isn't true anymore.
 	rocker.parse_coords()
 	rocker.parse_raw_reads()
 	
-	to_do = []
-	for base in rocker.positive:
-		for fasta, coords in zip(rocker.read_fastas_pos[base], rocker.coords_pos[base]):
-			gen = read_tagger(base_name = rocker.positive[base], input_fasta = fasta, coordinates = coords)
-			gen.prepare_outputs()
-			to_do.append(gen)
-	for base in rocker.negative:
-		for fasta, coords in zip(rocker.read_fastas_neg[base], rocker.coords_neg[base]):
-			gen = read_tagger(base_name = rocker.negative[base], input_fasta = fasta, coordinates = coords)
-			gen.prepare_outputs()
-			to_do.append(gen)
+	
+	pos_reads = []
+	for base in rocker.coords_pos:
+		cut = len(rocker.positive[base])
+		coords = {}
+		for c in rocker.coords_pos[base]:
+			coord_key = c[cut+8:-11]
+			coords[coord_key] = c
+		for r in rocker.read_fastas_pos[base]:
+			read_key = r[cut+11:-10].split("_read_length_")[0]
+			pos_reads.append((rocker.positive[base], r, coords[read_key],))
+	
+	neg_reads = []
+	for base in rocker.coords_neg:
+		cut = len(rocker.negative[base])
+		coords = {}
+		for c in rocker.coords_neg[base]:
+			coord_key = c[cut+8:-11]
+			coords[coord_key] = c
+		for r in rocker.read_fastas_neg[base]:
+			read_key = r[cut+11:-10].split("_read_length_")[0]
+			neg_reads.append((rocker.negative[base], r, coords[read_key],))
 		
+	to_do = []
+	
+	for tup in pos_reads:
+		gen = read_tagger(base_name = tup[0], input_fasta = tup[1], coordinates = tup[2])
+		gen.prepare_outputs()
+		to_do.append(gen)
+		
+	for tup in neg_reads:
+		gen = read_tagger(base_name = tup[0], input_fasta = tup[1], coordinates = tup[2])
+		gen.prepare_outputs()
+		to_do.append(gen)
+	
+
+	prog_bar = progress_tracker(total = len(to_do), message = "Tagging reads...")
 	pool = multiprocessing.Pool(threads)
-	pool.map(run_tagging, to_do)
+	for result in pool.imap_unordered(run_tagging, to_do):
+		prog_bar.update()
 	pool.close()
 	pool.join()
+	print("Reads tagged!")
 	
 
 generate_reads(project_directory = project_directory, threads = threads)
