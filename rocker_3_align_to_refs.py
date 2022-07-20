@@ -58,7 +58,7 @@ class aligner:
 			
 			#print(' '.join(align_command))
 			
-			subprocess.call(align_command, stderr = diamond_err)
+			subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
 			
 			diamond_err.close()
 			
@@ -269,8 +269,7 @@ def run_align(aligner_object):
 	
 	return (aligner_object.base, aligner_object.final_read_count, group,)
 	
-	
-	
+		
 def options():
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 			description='''	''')
