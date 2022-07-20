@@ -49,3 +49,4 @@ Open 4_refiner.R in RStudio and run all the code.
 # Installation
 
 conda install -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy
+pip install requests
