@@ -6,6 +6,8 @@ import numpy as np
 import multiprocessing
 import shutil
 
+import argparse
+
 from rocker_project_manager import project_manager
 from rocker_progress_tracker import progress_tracker
 
@@ -120,13 +122,6 @@ class read_generator:
 		shutil.rmtree("ref/index/"+str(self.build_num))
 
 		
-project_directory = sys.argv[1]
-try:
-	threads = int(sys.argv[2])
-except:
-	print("Couldn't recognize threads as a number. Setting threads to 1.")
-	threads = 1
-
 def run_generation(read_gen):
 	read_gen.rename_outputs()
 	read_gen.simulate_reads_bbmap()
@@ -149,7 +144,6 @@ def generate_reads(project_directory, threads):
 	long = (125, 150, 175,)
 	extra_long = (175, 200, 225,)
 	sim_lens = [short, standard, long, extra_long]
-	
 	
 	for base in rocker.positive:
 		for fasta, length in zip(rocker.genomes_pos[base], rocker.gen_lengths_pos[base]):
@@ -196,5 +190,38 @@ def generate_reads(project_directory, threads):
 	
 	print("Reads simulated!")
 	
+def options():
+	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+			description='''	''')
+	
+	parser.add_argument('-t', '--threads',  dest = 'threads', default = 1, help =  '')
+	parser.add_argument('-o', '--output',  dest = 'out', default = None, help =  'A rocker project directory that you have downloaded genomes for.')
 
-generate_reads(project_directory = project_directory, threads = threads)
+	args, unknown = parser.parse_known_args()
+	
+	return parser, args
+	
+	
+def main():
+	parser, opts = options()
+	
+	project_directory = opts.out
+	if project_directory is None:
+		print("You need to specify a ROCkOut project directory. Quitting.")
+		print(parser.print_help())
+		quit()
+		
+	try:
+		threads = int(opts.threads)
+	except:
+		print("Threads must be an integer. Defaulting to 1 thread.")
+		threads = 1
+		
+	multiprocessing.freeze_support()
+	
+	generate_reads(project_directory = project_directory, threads = threads)
+	
+	
+if __name__ == "__main__":
+	main()
+
