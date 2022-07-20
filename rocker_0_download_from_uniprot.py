@@ -5,6 +5,8 @@ import multiprocessing
 import requests
 import shutil
 
+import argparse
+
 '''
 This script is a revision on the original ROCker downloading functionality.
 '''
@@ -371,18 +373,53 @@ class uniprot_downloader:
 					shutil.rmtree(os.path.normpath(self.negdir + neg))
 				except:
 					pass
-		
-#This is effectively the main function here. There's probably a better way to package all of this, but it works.
-pos_list = sys.argv[1]
-neg_list = sys.argv[2]
-threads = sys.argv[3]
-dirname = sys.argv[4]
+	
 
-dl = uniprot_downloader(pos_list, neg_list, threads, dirname)
-dl.prepare_directories()
-dl.prepare_downloaders()
-dl.execute_downloads()
-dl.check_results()
+
+	
+def options():
+	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+			description='''	''')
+
+	parser.add_argument('-p', '--positive',  dest = 'pos', default = None, help =  '')
+	parser.add_argument('-n', '--negative',  dest = 'neg', default = None, help =  '')
+	parser.add_argument('-t', '--threads',  dest = 'threads', default = 1, help =  '')
+	parser.add_argument('-o', '--output',  dest = 'out', default = "rockout_project", help =  '')
+
+	args, unknown = parser.parse_known_args()
+	
+	return parser, args
+
+def main():
+	multiprocessing.freeze_support()
+	parser, opts = options()
+	pos_list = opts.pos
+	neg_list = opts.neg
+	try:
+		threads = int(opts.threads)
+	except:
+		print("Threads has to be an integer. Defaulting to 1 thread")
+		threads = 1
+
+	dirname = opts.out
+	
+	if pos_list is None:
+		print("Rocker needs a positive list!")
+		print(parser.print_help())
+		quit()
+	
+	print("Beginning ROCkOut!")
+
+	dl = uniprot_downloader(pos_list, neg_list, threads, dirname)
+	dl.prepare_directories()
+	dl.prepare_downloaders()
+	dl.execute_downloads()
+	dl.check_results()
+
+	
+
+if __name__ == "__main__":
+	main()
 
 
 
