@@ -105,28 +105,41 @@ class read_generator:
 		fh.write(self.generation_log)
 		fh.close()
 		
+		try:
+			proc.stdout.close()
+		except:
+			pass
+			
+		try:
+			proc.stderr.close()
+		except:
+			pass
+		
 	
 	#Convert fastq to fasta. Assumes that fastq format is strictly followed, 4 lines exactly.
 	def fastq_to_fasta(self):
-		line_counter = 1
-		fq = open(self.fastq_out)
-		fa = open(self.fasta_out, "w")
-		
-		for line in fq:
-			#Defline
-			if line_counter % 4 == 1:
-				fa.write(">"+line[1:])
-			#Seq
-			if line_counter % 4 == 2:
-				fa.write(line)
-			#Other lines are not data to keep.
-				
-			line_counter += 1
-		
-		fa.close()
-		fq.close()
-		#Clean up.
-		os.remove(self.fastq_out)
+		if os.path.exists(os.path.normpath(self.fastq_out)):
+			line_counter = 1
+			fq = open(self.fastq_out)
+			fa = open(self.fasta_out, "w")
+			
+			for line in fq:
+				#Defline
+				if line_counter % 4 == 1:
+					fa.write(">"+line[1:])
+				#Seq
+				if line_counter % 4 == 2:
+					fa.write(line)
+				#Other lines are not data to keep.
+					
+				line_counter += 1
+			
+			fa.close()
+			fq.close()
+			#Clean up.
+			os.remove(self.fastq_out)
+		else:
+			print(self.fastq_out, "could not be generated. ROCkOut cannot continue without this file.")
 		
 		
 	def clean_up(self):

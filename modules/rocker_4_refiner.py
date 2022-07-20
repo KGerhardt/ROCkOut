@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 
+
 import plotly.express as px
 import plotly.graph_objs as go
 
@@ -414,8 +415,3 @@ class plot_data:
 		self.craft_3d_plot()
 		self.craft_roc_plot()
 	
-
-'''
-mn = plot_data()
-mn.run_plotter("rockout_out")	
-'''

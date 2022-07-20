@@ -3,6 +3,8 @@ import sys
 import os
 import tempfile
 
+import argparse
+
 from rocker_project_manager import project_manager
 
 class MA_manager:
@@ -19,7 +21,6 @@ class MA_manager:
 		self.roc_proj.parse_project_directory()
 		self.roc_proj.parse_targets()
 		self.target_paths = self.roc_proj.targets
-		#self.roc_proj = None
 		
 	def merge_seqs(self):
 		if not os.path.exists(os.path.normpath(self.in_dir + "/shared_files")):

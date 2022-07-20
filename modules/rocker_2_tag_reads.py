@@ -68,7 +68,11 @@ class read_tagger:
 				malformed = False
 				
 				in_seq = False
-				id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
+				try:
+					id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
+				except:
+					print("Could not parse line.")
+				
 				fr, to = int(fr), int(to)
 				mn, mx = min(fr, to), max(fr, to)
 				
