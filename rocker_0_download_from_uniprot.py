@@ -161,7 +161,7 @@ class download_manager:
 					fh.write(sequence)
 					fh.close()
 				except:
-					pass
+					print("Could not download", "https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta for protein", self.prot)
 		
 		print("    Protein", str(self.index), "complete!")
 
