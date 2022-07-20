@@ -44,3 +44,8 @@ python 3_align_to_refs.py [project_dir_name] [threads]
 Open 4_refiner.R in RStudio and run all the code.
 
 [project_dir_name] does not need to exist prior to running step 0.
+
+
+# Installation
+
+conda install -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 numpy
