@@ -80,8 +80,20 @@ class read_generator:
 		medlen = "midlength="+str(self.mulen)
 		maxlen = "maxlength="+str(self.maxlen)
 		
-		#Set randomreads script to run with the given args.
-		command =  ["randomreads.sh", "simplenames=t", "gaussianlength=t", build_num, "ref="+self.input, "out="+self.fastq_out, snp_rate, cov_depth, insrate, delrate, minlen, medlen, maxlen]
+		
+		has_midlen = False
+		sanity_checker = subprocess.Popen(["randomreads.sh", "--help"], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		for line in sanity_checker.stdout:
+			line = line.decode()
+			if "midlen" in line:
+				has_midlen = True
+		
+		if has_midlen:
+			#Set randomreads script to run with the given args.
+			command =  ["randomreads.sh", "simplenames=t", "gaussianlength=t", build_num, "ref="+self.input, "out="+self.fastq_out, snp_rate, cov_depth, insrate, delrate, minlen, medlen, maxlen]
+		else:
+			command =  ["randomreads.sh", "simplenames=t", "gaussianlength=t", build_num, "ref="+self.input, "out="+self.fastq_out, snp_rate, cov_depth, insrate, delrate, minlen, maxlen]
+
 		
 		#Run the command and capture the output for logging purposes
 		proc = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
