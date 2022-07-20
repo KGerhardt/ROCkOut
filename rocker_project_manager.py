@@ -165,7 +165,7 @@ class project_manager:
 		
 	#Collect aligned reads for use in visualization/model refinement and most-discriminant cutoff identification.
 	def parse_aligns(self):
-		relevant_name = "alignments"
+		relevant_name = "aligned_reads"
 		for base in self.positive:
 			relevant_directory = os.path.normpath(self.positive[base] + "/" + relevant_name) + "/"
 			if os.path.exists(relevant_directory):
