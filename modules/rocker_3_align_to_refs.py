@@ -55,8 +55,7 @@ class aligner:
 			#-a = --daa DIAMOND alignment archive (DAA) file
 			
 			align_command = ["diamond", "blastx", "--sensitive", "--max-target-seqs", "1",  "--unal", "0", "--outfmt", "6", "--db", self.target, "--query", self.input, "--out", self.read_file]
-			
-			#print(' '.join(align_command))
+
 			
 			subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
 			
