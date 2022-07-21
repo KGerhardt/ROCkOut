@@ -345,6 +345,14 @@ class uniprot_downloader:
 	
 	#Look through outputs and see if anything is empty.
 	def check_results(self):
+		#log file
+		if not os.path.exists(os.path.normpath(self.outdir+"/shared_files")):
+			os.mkdir(os.path.normpath(self.outdir+"/shared_files"))
+		if not os.path.exists(os.path.normpath(self.outdir+"/shared_files/downloads/")):
+			os.mkdir(os.path.normpath(self.outdir+"/shared_files/downloads/"))
+			
+		errlog = open(os.path.normpath(self.outdir+"/shared_files/downloads/download_errlog.txt"), "w")
+		
 		for pos in self.positive_set:
 			path = os.path.normpath(self.posdir + pos + "/genomes")
 			try:
@@ -352,6 +360,7 @@ class uniprot_downloader:
 			except:
 				genome_files = []
 			if len(genome_files) < 1:
+				print(pos, "positive", "failed", sep = "\t", file = errlog)
 				print("Uniprot ID", pos, "was empty!")
 				print("This ID may have been changed or may be missing required data on Uniprot.")
 				print("Removing this positive ID from the dataset.")
@@ -359,6 +368,9 @@ class uniprot_downloader:
 					shutil.rmtree(os.path.normpath(self.posdir + pos))
 				except:
 					pass
+			else:
+				print(pos, "positive", "succeeded", sep = "\t", file = errlog)
+					
 		for neg in self.negative_set:
 			path = os.path.normpath(self.negdir + neg + "/genomes")
 			try:
@@ -366,6 +378,7 @@ class uniprot_downloader:
 			except:
 				genome_files = []
 			if len(genome_files) < 1:
+				print(neg, "negative", "failed", sep = "\t", file = errlog)
 				print("Uniprot ID", neg, "was empty!")
 				print("This ID may have been changed or may be missing required data on Uniprot.")
 				print("Removing this negative ID from the dataset.")
@@ -373,10 +386,11 @@ class uniprot_downloader:
 					shutil.rmtree(os.path.normpath(self.negdir + neg))
 				except:
 					pass
-	
+			else:
+				print(neg, "negative", "succeeded", sep = "\t", file = errlog)
+		
+		errlog.close()
 
-
-	
 def options():
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 			description='''	''')
@@ -415,8 +429,6 @@ def main():
 	dl.prepare_downloaders()
 	dl.execute_downloads()
 	dl.check_results()
-
-	
 
 if __name__ == "__main__":
 	main()
