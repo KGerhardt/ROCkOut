@@ -38,18 +38,17 @@ Install with conda or install individual dependencies separately and make them a
 
 Conda Installation
 
-'''bash
-conda install -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy
-pip install requests
-'''
+```bash
+conda install -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy requests
+```
 
 # Usage
 
 If using conda, activate the environment
 
-'''bash
+```bash
 conda activate ROCkOut
-'''
+```
 
 Before building the model, ROCkIn is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the separate README in the ROCkIn directory for more details.
 
