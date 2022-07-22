@@ -60,11 +60,17 @@ For additional details for each script type: python scriptname.py -h
 
 *OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
 
+```bash
 python rocker_0_download_from_uniprot.py [-h] [-p POS] [-n NEG] [-t THREADS] [-o OUT]
 python rocker_1_generate_reads.py [-h] [-t THREADS] [-o OUT]
 python rocker_2_tag_reads.py [-h] [-t THREADS] [-o OUT]
 python rocker_3_align_to_refs.py [-h] [-t THREADS] [-o OUT]
+```
 
-Then run python rocker_dash.py and open the IP address it gives in your web browser (copy and paste). Drag and drop or select the ROCkOUT_index.txt file that was created in the [OUT] directory.
+Then run the rocker_dash.py script and open the IP address it gives in your web browser (copy and paste). Drag and drop or select the ROCkOUT_index.txt file that was created in the [OUT] directory.
+
+```bash
+python rocker_dash.py
+```
 
 
