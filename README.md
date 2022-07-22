@@ -32,21 +32,40 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 * Model building - The use of a sliding window for determining the best cutoffs for a model make sense, but having to rerun that whole step to see a new window doesn't. The data should just all be loaded and sliced as needed on the interactive page.
 
-# Usage
-
-Scripts are used in their number order. You need a list of positive uniprot IDs, one per line, in a positives.txt file, negatives.txt if you want them. Usage is as follows:
-
-python 0_download_from_uniprot.py [positives.txt] [negatives.txt] [threads] [project_dir_name]
-python 1_generate_reads.py [project_dir_name] [threads]
-python 2_tag_reads.py [project_dir_name] [threads]
-python 3_align_to_refs.py [project_dir_name] [threads]
-
-Open 4_refiner.R in RStudio and run all the code.
-
-[project_dir_name] does not need to exist prior to running step 0.
-
-
 # Installation
 
-conda install -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy
+Install with conda or install individual dependencies separately and make them available in the system PATH.
+
+Conda Installation
+
+'''bash
+conda install -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy
 pip install requests
+'''
+
+# Usage
+
+If using conda, activate the environment
+
+'''bash
+conda activate ROCkOut
+'''
+
+Before building the model, ROCkIn is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the separate README in the ROCkIn directory for more details.
+
+Manually create a simple text file with one UniProt ID per line. Create one file for the positive IDs (POS) and optionally negative IDs (NEG).
+
+ROCkOut usage is as follows:
+
+For additional details for each script type: python scriptname.py -h
+
+*OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
+
+python rocker_0_download_from_uniprot.py [-h] [-p POS] [-n NEG] [-t THREADS] [-o OUT]
+python rocker_1_generate_reads.py [-h] [-t THREADS] [-o OUT]
+python rocker_2_tag_reads.py [-h] [-t THREADS] [-o OUT]
+python rocker_3_align_to_refs.py [-h] [-t THREADS] [-o OUT]
+
+Then run python rocker_dash.py and open the IP address it gives in your web browser (copy and paste). Drag and drop or select the ROCkOUT_index.txt file that was created in the [OUT] directory.
+
+
