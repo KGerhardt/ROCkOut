@@ -4,3 +4,5 @@ __pycache__/rocker_progress_tracker.cpython-39.pyc
 __pycache__/rocker_progress_tracker.cpython-37.pyc
 __pycache__/rocker_project_manager.cpython-37.pyc
 .DS_Store
+modules/__pycache__/rocker_progress_tracker.cpython-37.pyc
+modules/__pycache__/rocker_project_manager.cpython-37.pyc
