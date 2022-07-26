@@ -39,7 +39,7 @@ Install with conda or install individual dependencies separately and make them a
 Conda Installation
 
 ```bash
-conda create -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy requests dash
+conda create -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy pandas requests dash
 ```
 
 # Usage

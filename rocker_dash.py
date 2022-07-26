@@ -1,6 +1,4 @@
-import dash
-from dash import dcc
-from dash import html
+from dash import dash, dcc, html
 from dash.dependencies import Input, Output, State
 from modules.rocker_4_refiner import plot_data
 import os
