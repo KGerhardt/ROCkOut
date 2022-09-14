@@ -7,8 +7,8 @@ import multiprocessing
 
 import argparse
 
-from rocker_project_manager import project_manager
-from rocker_progress_tracker import progress_tracker
+from .rocker_project_manager import project_manager
+from .rocker_progress_tracker import progress_tracker
 
 #Class for simulating and tagging reads in ROCker friendly format.
 class read_tagger:
@@ -16,11 +16,11 @@ class read_tagger:
 	def __init__(self, base_name = None, input_fasta = None, coordinates = None):
 		self.base = base_name
 		
-		self.input_base = os.path.basename(input_fasta)[:-10]
+		self.input_base = os.path.basename(input_fasta).split("_raw")[0]
 		
 		self.input = input_fasta
 		
-		self.tags = os.path.normpath(self.base + "/tagged_reads/" + self.input_base + "_tagged_fasta.txt")
+		self.tags = os.path.normpath(self.base + "/tagged_reads/" + self.input_base + "_tagged.fasta")
 		
 		self.coords = coordinates
 		self.coord_starts = None
@@ -52,6 +52,8 @@ class read_tagger:
 		
 	def tag_bbmap_reads(self):
 		#A bbmap regex matcher with groups defined for the info we want to extract from each read.
+		
+		pos_ct, off_ct, neg_ct = 0, 0, 0
 		
 		self.extract_from_coords()
 		
@@ -95,12 +97,15 @@ class read_tagger:
 					
 				if is_negative:
 					print(">" + tagged_name + ";Negative", file = out)
+					neg_ct += 1
 				else:
 					if (start_window - 1) == end_window:
 						#The read falls inside a target gene window and we should tag it as on-target
 						print(">" + tagged_name + ";Target", file = out)
+						pos_ct += 1
 					else:
 						print(">" + tagged_name + ";Non_Target", file = out)
+						off_ct += 1
 				
 			else:
 				if not malformed:
@@ -109,12 +114,14 @@ class read_tagger:
 				
 		fh.close()
 		out.close()
+		
+		return [pos_ct, off_ct, neg_ct]
 
 
 def run_tagging(read_tag):
 	#read_gen.prepare_outputs()
-	read_tag.tag_bbmap_reads()
-	return read_tag.base
+	counts = read_tag.tag_bbmap_reads()
+	return [read_tag.base, counts]
 
 def generate_reads(project_directory, threads):
 	rocker = project_manager(directory = project_directory, threads = threads)
@@ -124,7 +131,6 @@ def generate_reads(project_directory, threads):
 	rocker.parse_coords()
 	rocker.parse_raw_reads()
 	
-	
 	pos_reads = []
 	for base in rocker.coords_pos:
 		cut = len(rocker.positive[base])
@@ -133,7 +139,7 @@ def generate_reads(project_directory, threads):
 			coord_key = c[cut+8:-11]
 			coords[coord_key] = c
 		for r in rocker.read_fastas_pos[base]:
-			read_key = r[cut+11:-10].split("_read_length_")[0]
+			read_key = r[cut+11:-6].split("_read_length_")[0]
 			pos_reads.append((rocker.positive[base], r, coords[read_key],))
 	
 	neg_reads = []
@@ -144,7 +150,7 @@ def generate_reads(project_directory, threads):
 			coord_key = c[cut+8:-11]
 			coords[coord_key] = c
 		for r in rocker.read_fastas_neg[base]:
-			read_key = r[cut+11:-10].split("_read_length_")[0]
+			read_key = r[cut+11:-6].split("_read_length_")[0]
 			neg_reads.append((rocker.negative[base], r, coords[read_key],))
 		
 	to_do = []
@@ -160,14 +166,40 @@ def generate_reads(project_directory, threads):
 		to_do.append(gen)
 	
 
+	tags = os.path.normpath(project_directory + "/shared_files/read_tagging")	
+	if not os.path.exists(tags):
+		os.mkdir(tags)
+	
+	log = open(os.path.normpath(tags + "/read_tagging_log.txt"), "w")
+	print("protein\tpositive_hits\toff_target_hits\tnegative_hits", file = log)
+	
 	prog_bar = progress_tracker(total = len(to_do), message = "Tagging reads...")
 	pool = multiprocessing.Pool(threads)
 	for result in pool.imap_unordered(run_tagging, to_do):
+		print(result[0], *result[1], file = log)
 		prog_bar.update()
 	pool.close()
 	pool.join()
+	log.close()
 	print("Reads tagged!")
 	
+	
+def tag_reads(parser, opts):
+	project_directory = opts.dir
+	if project_directory is None:
+		print("You need to specify a ROCkOut project directory. Quitting.")
+		print(parser.print_help())
+		quit()
+		
+	try:
+		threads = int(opts.threads)
+	except:
+		print("Threads must be an integer. Defaulting to 1 thread.")
+		threads = 1
+		
+	multiprocessing.freeze_support()
+	
+	generate_reads(project_directory = project_directory, threads = threads)
 	
 def options():
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
@@ -198,8 +230,3 @@ def main():
 	multiprocessing.freeze_support()
 	
 	generate_reads(project_directory = project_directory, threads = threads)
-	
-	
-if __name__ == "__main__":
-	main()
-

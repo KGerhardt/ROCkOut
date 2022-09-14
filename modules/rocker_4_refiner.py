@@ -8,7 +8,6 @@ import plotly.express as px
 import plotly.graph_objs as go
 
 from .rocker_project_manager import project_manager
-#from rocker_project_manager import project_manager
 
 def import_rocker_project(project_directory):
 	manager = project_manager(project_directory)
@@ -20,6 +19,7 @@ def import_rocker_project(project_directory):
 class plot_data:
 	def __init__(self):
 		self.project_dir = None
+		self.index = None
 		self.manager = None
 		
 		self.description = None
@@ -36,6 +36,8 @@ class plot_data:
 		self.active_proteins = None
 		self.max_position = None
 		
+		self.senspec = None
+		
 		#How many AA will be considered at a time when calculating ROC - this a sliding window
 		self.window_size = 20
 		#How fine-grain will the y-axis be? 0.5 bitscore windows by default
@@ -49,10 +51,14 @@ class plot_data:
 		try:
 			print("Parsing:", project_directory, "...")
 			self.project_dir = project_directory
+			self.index = os.path.normpath(project_directory + "/ROCkOUT_index.txt")
 			self.manager = project_manager(project_directory)
 			self.manager.parse_project_directory()
 			self.manager.parse_aligns()
 			self.load_reads()
+			
+			self.load_from_index()
+			
 			self.successful_load = True
 			print("Project loaded!")
 		except:
@@ -70,7 +76,7 @@ class plot_data:
 				#Specific protein name
 				title = components[0]
 				#read length
-				avg_read_length = components[1].split("_aligned_reads.txt")[0]
+				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
 				#Initialize this list.
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
@@ -89,7 +95,12 @@ class plot_data:
 					
 					bitscore = float(segs[11])
 					
-					data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
+					
+					double_key = alignments + ", " + title
+					
+					data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, double_key, )
+					
+					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
 					
 					self.loaded_data[avg_read_length].append(data)
 				fh.close()
@@ -122,7 +133,10 @@ class plot_data:
 					
 					bitscore = float(segs[11])
 					
-					data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
+					double_key = alignments + ", " + title
+					
+					data = (avg_read_length, alignments, title, read_classifier, alignment_target, 
+					midpt, start, end, bitscore, double_key, )
 					
 					self.loaded_data[avg_read_length].append(data)
 				fh.close()
@@ -134,12 +148,16 @@ class plot_data:
 			
 		for rl in self.loaded_data:
 			self.loaded_data[rl] = pd.DataFrame(self.loaded_data[rl])
-			self.loaded_data[rl].columns = ["read_length", "parent", "protein", "classifier", "target", "midpoint", "start", "end", "bitscore"]
+			self.loaded_data[rl].columns = ["read_length", "parent", "protein", 
+			"classifier", "target", "midpoint", "start", "end", "bitscore", "UniProt ID, protein name"]
+			
 			#Add max as needed.
 			self.max_position = max(self.max_position, max(self.loaded_data[rl]["end"]))
 			self.active_parents = self.active_parents.union(self.loaded_data[rl]["parent"])
 			self.active_proteins = self.active_proteins.union(self.loaded_data[rl]["protein"]) 
-
+			
+			
+			
 		self.readlens = list(self.loaded_data.keys())
 		self.current_read_len = min(self.readlens)
 			
@@ -159,6 +177,7 @@ class plot_data:
 			return array[idx]
 			
 		self.models = []
+		self.senspec = {}
 		
 		#Separate the data into groups of mean read lengths.
 		#read_lengths = list(set(current_data["read_length"]))
@@ -248,6 +267,9 @@ class plot_data:
 				#fn = np.subtract(tgt_max, max_by_bitscore_tgt)
 				tn = np.subtract(con_max, max_by_bitscore_con)
 				
+				total_obs = tgt_max + con_max
+				accuracy = np.divide(np.add(max_by_bitscore_tgt, tn), total_obs)
+				
 				#sensitivity = TP / (TP + FN)
 				#This simplifies.
 				#TP + FN = max_by_bitscore_tgt + tgt_max - max_by_bitscore_tgt = tgt_max
@@ -268,6 +290,11 @@ class plot_data:
 					#the min bitscore in this case, which is the last index.
 					cutoff = max_by_bitscore_tgt.shape[0]-1
 				
+				
+				if rl not in self.senspec:
+					self.senspec[rl] = []
+				self.senspec[rl].append((window_midpoint, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
+
 				cutoff_bitscore = desc_bitscores[cutoff]
 				#print(rl, window_start, window_end, cutoff, Youden_by_bs[cutoff], desc_bitscores[cutoff])
 				
@@ -277,19 +304,26 @@ class plot_data:
 				
 		self.models = pd.DataFrame(self.models)
 		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
-					
+		
 	def craft_plot(self):
 		if self.loaded_data is not None:
 			
 			for rl in self.loaded_data:
 				current_data = self.loaded_data[rl].copy()
+				#We do have the parent involved...
+				#print(current_data)
 				#Not needed.
 				#current_data = current_data.loc[current_data['read_length']==self.current_read_len]
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 				
-				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', symbol = 'protein')
+				
+				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', 
+				color_discrete_sequence = ["blue", "darkorange", "green"], 
+				category_orders={"classifier": ["Target", "Non_Target", "Negative"]}, 
+				symbol = "UniProt ID, protein name")
+				
 				fig.update_layout(scene = dict(
-							xaxis_title='Position in Protein',
+							xaxis_title='Position in Protein',	
 							yaxis_title='Bitscore'))
 							
 				fig_title = "scatter_2d_read_len_" + str(rl)
@@ -302,7 +336,7 @@ class plot_data:
 				current_data = self.loaded_data[rl].copy()
 				
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
-				hit_type_to_color = {"Target":"blue", "Non_Target":"orange", "Negative":"green"}
+				hit_type_to_color = {"Target":"blue", "Non_Target":"darkorange", "Negative":"green"}
 				hit_colors = [hit_type_to_color[t] for t in current_data["classifier"]]
 				current_data.insert(0, "color", hit_colors)
 				
@@ -337,7 +371,10 @@ class plot_data:
 			current_data = pd.concat(list(self.loaded_data.values()))
 			current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 			
-			fig = px.scatter_3d(current_data, x="midpoint", y ="bitscore", z="read_length", color = 'classifier')
+			fig = px.scatter_3d(current_data, x="midpoint", y ="bitscore", z="read_length", color = 'classifier',
+				color_discrete_sequence = ["blue", "darkorange", "green"], 
+				category_orders={"classifier": ["Target", "Non_Target", "Negative"]})
+			
 			fig.update_layout(scene = dict(
 						xaxis_title='Position in Protein',
 						yaxis_title='Bitscore',
@@ -384,19 +421,75 @@ class plot_data:
 				if corresp in self.figs:
 					self.figs[corresp] = go.Figure(data=self.figs[corresp].data + fig.data)
 	
+	def craft_acc_sens_spec(self):
+		if self.senspec is not None:
+			for rl in self.senspec:
+				one_data = pd.DataFrame(self.senspec[rl])
+				one_data.columns = ["midpoint", "acc", "sens", "spec"]
+				one_data = one_data.melt(id_vars = ["midpoint"], var_name = 'Measure')
+				
+				fig = px.line(one_data, x="midpoint", y ="value", color = 'Measure')
+				fig.update_layout(scene = dict(
+							xaxis_title='Position in Protein',
+							yaxis_title='Metric value'))
+				fig.update_layout(yaxis_range=[0,1])
+							
+				fig_title = "classifier_plot_read_len_" + str(rl)
+				#Add to list with title.
+				self.figs[fig_title] = fig
+	
 	def output_plots(self):
 		#Create output folders if needed
 		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
 		if not os.path.exists(out_path_base):
-			os.mkdir(oout_path_base)
+			os.mkdir(out_path_base)
 		out_path_base += "/figures"
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
+		out_path_base = os.path.normpath(out_path_base)
 		#Save interactive plots.
 		for plot_title in self.figs:
 			print("Printing", plot_title)
-			self.figs[plot_title].write_html(out_path_base+"/"+plot_title+".html")
+			self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"))
 
+	def output_models(self):
+		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
+		if not os.path.exists(out_path_base):
+			os.mkdir(out_path_base)
+		out_path_base += "/model"
+		out_path_base = os.path.normpath(out_path_base)
+		if not os.path.exists(out_path_base):
+			os.mkdir(out_path_base)		
+
+		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity.txt")
+		sp = open(output_senspec, "w")
+		print("read_length", "window_midpt", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
+		for rl in self.senspec:
+			for row in self.senspec[rl]:
+				print(rl, row[0], row[1], row[2], row[3], sep = "\t", file = sp)
+		sp.close()
+		
+		output_filter = os.path.normpath(out_path_base + "/ROCkOut_Filter.txt")
+		self.models.to_csv(output_filter, sep = "\t", index = False)
+		
+		
+	def update_index(self):
+		pass
+		
+	def load_from_index(self):
+		record = {}
+		fh = open(self.index)
+		fh.readline()
+		for line in fh:
+			segs = line.strip().split("\t")
+			parent, protein_name, readlen, num_reads, group, included = segs[0], segs[1], int(segs[2]), int(segs[3]), segs[4], segs[5]=="T"
+			#print(parent, protein_name, readlen, num_reads, group, included)
+			if not included:
+				print(parent, protein_name, readlen, num_reads, group, included)
+				self.active_proteins.pop(self.active_proteins.index(protein_name))
+				
+		fh.close()
+			
 	def just_make_plots(self):
 		self.craft_plot()
 		self.craft_reads_plot()
@@ -414,4 +507,14 @@ class plot_data:
 		self.craft_reads_plot()
 		self.craft_3d_plot()
 		self.craft_roc_plot()
+		self.craft_acc_sens_spec()
+
+
+
+def non_interactive(parser, opts):
+	mn = plot_data()
+	dir = opts.dir
+	mn.run_plotter(dir)
+	mn.output_plots()
+	mn.output_models()
 	

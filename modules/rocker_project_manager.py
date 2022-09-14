@@ -51,7 +51,11 @@ class project_manager:
 		self.alignments_neg = {}
 		
 		self.targets = {}
+		self.targets_nt = {}
 		self.active_targets = None
+		
+		self.mult_aln_base = os.path.normpath(self.project_base + "/shared_files/multiple_alignment")
+		self.mult_aln_files = {}
 		
 	#List out proteins in a ROCker directory
 	def parse_project_directory(self):
@@ -160,7 +164,17 @@ class project_manager:
 		for base in self.positive:
 			relevant_directory = os.path.normpath(self.positive[base] + "/" + relevant_name) + "/"
 			if os.path.exists(relevant_directory):
-				self.targets[base] = [relevant_directory + c for c in listdir_mac_purge(relevant_directory)]
+				files = listdir_mac_purge(relevant_directory)
+				for c in files:
+					if c.endswith("AA.fasta"):
+						if base not in self.targets:
+							self.targets[base] = []
+						self.targets[base].append(relevant_directory + c)
+					else:
+						if base not in self.targets_nt:
+							self.targets_nt[base] = []
+						self.targets_nt[base].append(relevant_directory + c)
+						
 		#There is no negative side to the targets, so it's omitted here.
 		if self.active_targets is None:
 			self.active_targets = self.targets
@@ -184,5 +198,13 @@ class project_manager:
 			if os.path.exists(relevant_directory):
 				self.alignments_neg[base] = [relevant_directory + c for c in listdir_mac_purge(relevant_directory)]		
 				
-		
+	def parse_mult_aln(self):
+		if os.path.exists(self.mult_aln_base):
+			files = os.listdir(self.mult_aln_base)
+			self.mult_aln_files["aln"]  = os.path.normpath(self.mult_aln_base + "/target_seq_MA.fasta")
+			self.mult_aln_files["log"]  = os.path.normpath(self.mult_aln_base + "/fasttree_log.txt")
+			self.mult_aln_files["tree"] = os.path.normpath(self.mult_aln_base + "/target_seq_tree.txt")
+			
+		else:
+			print("Multiple alignment directory not found!")
 		

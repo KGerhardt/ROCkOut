@@ -8,13 +8,16 @@ import shutil
 
 import argparse
 
-from rocker_project_manager import project_manager
-from rocker_progress_tracker import progress_tracker
+from .rocker_project_manager import project_manager
+from .rocker_progress_tracker import progress_tracker
 
 #Class for simulating and tagging reads in ROCker friendly format.
 class read_generator:
 	#def __init__(self, input_fasta = None, input_gffs = None, positive = True, simulator = "BBMap", coordinates = None, is_pos = False):
-	def __init__(self, base_name = None, input_fasta = None, simulator = "BBMap", build_num = 1, coverage_depth = 20.0, snp_rate_per_base = 0.05, insertion_rate = 0.05/19.0, deletion_rate = 0.05/19.0, read_length_min = 80, read_length_mid = 100, read_length_max = 120):
+	def __init__(self, base_name = None, input_fasta = None, simulator = "BBMap", 
+	build_num = 1, coverage_depth = 20.0, snp_rate_per_base = 0.01, insertion_rate = 0.01/19.0, 
+	deletion_rate = 0.01/19.0, read_length_min = 80, read_length_mid = 100, read_length_max = 120):
+		
 		self.base = base_name
 		
 		self.input_base = os.path.basename(input_fasta)[:-10]
@@ -50,9 +53,9 @@ class read_generator:
 		#Names are generated with read length info for model building.
 		read_len_label = str(int(round((self.minlen + self.maxlen)/2, 0)))
 		#FastQ may not always be generated, but is with the following tools: BBMap
-		self.fastq_out = os.path.normpath(self.base + "/raw_reads/" + self.input_base + "_read_length_" + read_len_label + ".fastq.txt")
+		self.fastq_out = os.path.normpath(self.base + "/raw_reads/" + self.input_base + "_read_length_" + read_len_label + "_raw.fastq")
 		#These two will always be made
-		self.fasta_out = os.path.normpath(self.base + "/raw_reads/" + self.input_base + "_read_length_" + read_len_label + ".fasta.txt")
+		self.fasta_out = os.path.normpath(self.base + "/raw_reads/" + self.input_base + "_read_length_" + read_len_label + "_raw.fasta")
 		
 	def prepare_outputs(self):
 		fastas = os.path.normpath(self.base + "/raw_reads") + "/"
@@ -123,6 +126,7 @@ class read_generator:
 			fq = open(self.fastq_out)
 			fa = open(self.fasta_out, "w")
 			
+			#We read the FASTA and parse the reads to tag them along the way.
 			for line in fq:
 				#Defline
 				if line_counter % 4 == 1:
@@ -137,14 +141,23 @@ class read_generator:
 			fa.close()
 			fq.close()
 			#Clean up.
-			os.remove(self.fastq_out)
+			try:
+				os.remove(self.fastq_out)
+			except:
+				print("Couldn't remove", self.fastq_out)
 		else:
 			print(self.fastq_out, "could not be generated. ROCkOut cannot continue without this file.")
 		
 		
 	def clean_up(self):
-		shutil.rmtree("ref/genome/"+str(self.build_num))
-		shutil.rmtree("ref/index/"+str(self.build_num))
+		try:
+			shutil.rmtree("ref/genome/"+str(self.build_num))
+		except:
+			pass
+		try:
+			shutil.rmtree("ref/index/"+str(self.build_num))
+		except:
+			print("Couldn't remove ref/index/"+str(self.build_num))
 
 		
 def run_generation(read_gen):
@@ -154,7 +167,16 @@ def run_generation(read_gen):
 	read_gen.clean_up()
 	return read_gen.base, read_gen.mulen
 
-def generate_reads(project_directory, threads):
+def parse_read_triplet(rt):
+	rt = rt.split(",")
+	rt = [int(r) for r in rt]
+	rt = tuple(rt)
+	return rt
+	
+def generate_reads(project_directory, threads, short = "90,100,110", 
+	standard = "180,200,220", long = "270,300,330", extra_long = "360,400,440",
+	cov = 20.0, snp = 0.01, insrate = 0.01/19, delrate = 0.01/19):
+	
 	rocker = project_manager(directory = project_directory, threads = threads)
 	rocker.parse_project_directory()
 	rocker.parse_coords()
@@ -164,11 +186,42 @@ def generate_reads(project_directory, threads):
 	to_do = []
 	count = 1
 	
-	short = (60, 75, 90,)
-	standard = (80, 100, 120,)
-	long = (125, 150, 175,)
-	extra_long = (175, 200, 225,)
+	try:
+		short = parse_read_triplet(short)
+	except:
+		print("Couldn't interpret short read lengths", short, "setting to default 90, 100, 110")
+		short = (90, 100, 110,)
+		
+	try:
+		standard = parse_read_triplet(standard)
+	except:
+		print("Couldn't interpret med read lengths", standard, "setting to default 180, 200, 220")
+		standard = (180, 200, 220,)
+		
+	try:
+		long = parse_read_triplet(long)
+	except:
+		print("Couldn't interpret long read lengths", standard, "setting to default 270, 300, 330")
+		long = (270, 300, 330,)
+			
+	try:
+		extra_long = parse_read_triplet(extra_long)
+	except:
+		print("Couldn't interpret extra long read lengths", standard, "setting to default 360, 400, 440")
+		extra_long = (360, 400, 440,)
+	
 	sim_lens = [short, standard, long, extra_long]
+	print("")
+	print("Simulating reads from gaussian distribution with min, mean, max lengths:")
+	for rl in sim_lens:
+		print("\t",rl)
+		
+	print("Using parameters:")
+	print("Coverage:", cov)
+	print("SNP rate:", snp)
+	print("Insertion rate:", insrate)
+	print("Deletion rate:", delrate)
+	print("")
 	
 	for base in rocker.positive:
 		for fasta, length in zip(rocker.genomes_pos[base], rocker.gen_lengths_pos[base]):
@@ -176,7 +229,9 @@ def generate_reads(project_directory, threads):
 			for length_set in sim_lens:
 				#Do not add a too-short genome - the genome must be 1.5x larger than the max read length of the triplet.
 				if length > 1.5 * length_set[2]:
-					gen = read_generator(base_name = rocker.positive[base], input_fasta = fasta, build_num = count, read_length_min = length_set[0], read_length_mid = length_set[1], read_length_max = length_set[2])
+					gen = read_generator(base_name = rocker.positive[base], input_fasta = fasta, 
+					build_num = count, coverage_depth = cov, snp_rate_per_base = snp, insertion_rate = insrate,  deletion_rate = delrate,
+					read_length_min = length_set[0], read_length_mid = length_set[1], read_length_max = length_set[2])
 					gen.prepare_outputs()
 					to_do.append(gen)
 					count += 1
@@ -189,7 +244,9 @@ def generate_reads(project_directory, threads):
 			hits = 0
 			for length_set in sim_lens:
 				if length > 1.5 * length_set[2]:
-					gen = read_generator(base_name = rocker.negative[base], input_fasta = fasta, build_num = count, read_length_min = length_set[0], read_length_mid = length_set[1], read_length_max = length_set[2])
+					gen = read_generator(base_name = rocker.negative[base], input_fasta = fasta, 
+					build_num = count, coverage_depth = cov, snp_rate_per_base = snp, insertion_rate = insrate,  deletion_rate = delrate,
+					read_length_min = length_set[0], read_length_mid = length_set[1], read_length_max = length_set[2])
 					gen.prepare_outputs()
 					to_do.append(gen)
 					count += 1
@@ -206,13 +263,13 @@ def generate_reads(project_directory, threads):
 	pool.close()
 	pool.join()
 	
-	if len(os.listdir("ref/genome")) == 0:
-		shutil.rmtree("ref/genome")
-	if len(os.listdir("ref/index")) == 0:
-		shutil.rmtree("ref/index")
-	if len(os.listdir("ref")) == 0:
-		shutil.rmtree("ref")
+	print("Cleaning up.")
 	
+	try:
+		shutil.rmtree("ref")
+	except:
+		print("Trouble removing simulated refs")
+		
 	print("Reads simulated!")
 	
 def options():
@@ -227,6 +284,57 @@ def options():
 	return parser, args
 	
 	
+def generate(parser, opts):
+	project_directory = opts.dir
+	if project_directory is None:
+		print("You need to specify a ROCkOut project directory. Quitting.")
+		print(parser.print_help())
+		quit()
+		
+	try:
+		threads = int(opts.threads)
+	except:
+		print("Threads must be an integer. Defaulting to 1 thread.")
+		threads = 1
+		
+	s, m, l, xl = opts.short, opts.med, opts.long, opts.xl
+	
+	#parser.add_argument('--coverage',  dest = 'cov', default = "20", help = "Read coverage depth for simulated reads. Default 20") 
+	#parser.add_argument('--snprate',  dest = 'snps', default = "0.01", help = "Per base substitution likelihood. Default 0.01") 
+	#parser.add_argument('--insertrate',  dest = 'insrate', default = None, help = "Insertion rate. Default 1/19th of snprate.") 
+	#parser.add_argument('--delrate',  dest = 'delrate', default = None, help = "Deletion rate. Default 1/19th of snprate.") 
+	
+	coverage = float(opts.cov)
+	snprate = float(opts.snps)
+	insrate = opts.insrate
+	delrate = opts.delrate
+	
+	try:
+		if insrate is None:
+			insrate = snprate/19
+		else:
+			insrate = float(insrate)
+	except:
+		print("Insertion rate couldn't be determined from your parameter", insrate)
+		print("Defaulting to 1/19th default snp rate (0.01/19).")
+		insrate = 0.01/19
+		
+	try:
+		if delrate is None:
+			delrate = snprate/19
+		else:
+			delrate = float(delrate)
+	except:
+		print("Deletion rate couldn't be determined from your parameter", insrate)
+		print("Defaulting to 1/19th snp rate (0.01/19).")	
+		delrate = 0.01/19
+		
+	multiprocessing.freeze_support()
+	
+	generate_reads(project_directory = project_directory, threads = threads, 
+	short = s, standard = m, long = l, extra_long = xl)
+
+'''	
 def main():
 	parser, opts = options()
 	
@@ -242,11 +350,13 @@ def main():
 		print("Threads must be an integer. Defaulting to 1 thread.")
 		threads = 1
 		
+	s, m, l, xl = opts.short, opts.med, opts.long, opts.xl
+	print(s, m, l, xl)
+		
 	multiprocessing.freeze_support()
 	
-	generate_reads(project_directory = project_directory, threads = threads)
+	generate_reads(project_directory = project_directory, threads = threads, 
+	short = s, standard = m, long = l, extra_long = xl)
+'''	
 	
-	
-if __name__ == "__main__":
-	main()
 

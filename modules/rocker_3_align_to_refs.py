@@ -5,11 +5,14 @@ import subprocess
 
 import argparse
 
-from rocker_project_manager import project_manager
-from rocker_progress_tracker import progress_tracker
+from .rocker_project_manager import project_manager
+from .rocker_progress_tracker import progress_tracker
+
+import tarfile
 
 class aligner:
-	def __init__(self, base_name = None, base_path = None, original_reads = None, tagged_fasta = None, target_database = None, tool = 'diamond'):
+	def __init__(self, base_name = None, base_path = None, original_reads = None, tagged_fasta = None, target_database = None, tool = 'diamond', parent = "parent"):
+		self.parent = parent
 		self.base = base_name
 		self.path = base_path
 		self.og = original_reads
@@ -19,7 +22,7 @@ class aligner:
 		
 		self.final_read_count = 0
 		
-		self.read_file = os.path.normpath(self.path + "aligned_reads/" + self.base + "_aligned_reads.txt")
+		self.read_file = os.path.normpath(self.path + "aligned_reads/" + self.base + "_aligned_reads.fasta")
 		
 	
 	def prepare_outputs(self):
@@ -54,9 +57,8 @@ class aligner:
 			#-p = --threads
 			#-a = --daa DIAMOND alignment archive (DAA) file
 			
-			align_command = ["diamond", "blastx", "--sensitive", "--max-target-seqs", "1",  "--unal", "0", "--outfmt", "6", "--db", self.target, "--query", self.input, "--out", self.read_file]
+			align_command = ["diamond", "blastx", "--min-score", "20", "--sensitive", "--max-target-seqs", "1", "--unal", "0", "--outfmt", "6", "--db", self.target, "--query", self.input, "--out", self.read_file]
 
-			
 			subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
 			
 			diamond_err.close()
@@ -78,7 +80,11 @@ class aligner:
 			out.close()
 			fh.close()
 			
-			os.remove(self.read_file)
+			try:
+				os.remove(self.read_file)
+			except:
+				pass
+				
 			os.rename(self.read_file + "_filtered.txt", self.read_file)
 			#diamond_stdout.close()
 		
@@ -99,7 +105,10 @@ class aligner:
 			
 		out.close()
 		fh.close()
-		os.remove(file_name)
+		try:
+			os.remove(file_name)
+		except:
+			pass
 		os.rename(file_name + "_filtered.txt", file_name)
 		
 	def clean_tagged_file(self, file_name, hits):
@@ -119,7 +128,10 @@ class aligner:
 			
 		out.close()
 		fh.close()
-		os.remove(file_name)
+		try:
+			os.remove(file_name)
+		except:
+			pass
 		os.rename(file_name + "_filtered.txt", file_name)
 	
 	def clean_up_your_mess(self):
@@ -137,10 +149,7 @@ class aligner:
 		self.clean_raw_file(self.og, hits)
 		self.clean_tagged_file(self.input, hits)
 		
-		
-		
-		
-			
+
 #Database building class		
 class db_builder:
 	def __init__(self, tool = 'diamond', input_file = None, output_file = None):
@@ -165,7 +174,10 @@ class db_builder:
 		if self.tool == "mmseqs":
 			pass
 		
-
+def make_tarfile(output_filename, source_dir):
+    with tarfile.open(output_filename, "w:gz") as tar:
+        tar.add(source_dir, arcname=os.path.basename(source_dir))
+		
 def align_reads(project_directory, threads, tool = "diamond"):
 	rocker = project_manager(directory = project_directory, threads = threads)
 	#This gets 
@@ -190,7 +202,7 @@ def align_reads(project_directory, threads, tool = "diamond"):
 		os.mkdir(shared_genomes)
 		
 	target_db_name = shared_db + tool + "_combined_database.db"
-	target_fasta_set = shared_genomes + "combined_genomes.fasta.txt"
+	target_fasta_set = shared_genomes + "combined_genomes.fasta"
 
 	#Join the positive files
 	combiner = open(target_fasta_set, "w")
@@ -222,20 +234,19 @@ def align_reads(project_directory, threads, tool = "diamond"):
 	
 	for base in rocker.positive:
 		for raws, fasta in zip(rocker.read_fastas_pos[base], rocker.tagged_reads_pos[base]):
-			unique_id = os.path.basename(fasta)[:-17]
-			aln = aligner(base_name = unique_id, base_path = os.path.normpath(rocker.positive[base])+"/", original_reads = raws, tagged_fasta = fasta, target_database = target_db_name, tool = tool)
+			unique_id = os.path.basename(fasta).split("_tagged")[0]
+			aln = aligner(base_name = unique_id, base_path = os.path.normpath(rocker.positive[base])+"/", original_reads = raws, tagged_fasta = fasta, target_database = target_db_name, tool = tool, parent = base)
 			aln.prepare_outputs()
 			to_do.append(aln)
 			count += 1	
 	for base in rocker.negative:
 		for raws, fasta in zip(rocker.read_fastas_neg[base], rocker.tagged_reads_neg[base]):
-			unique_id = os.path.basename(fasta)[:-17]
-			aln = aligner(base_name = unique_id, base_path = os.path.normpath(rocker.negative[base])+"/", original_reads = raws, tagged_fasta = fasta, target_database = target_db_name, tool = tool)
+			unique_id = os.path.basename(fasta)("_tagged")[0]
+			aln = aligner(base_name = unique_id, base_path = os.path.normpath(rocker.negative[base])+"/", original_reads = raws, tagged_fasta = fasta, target_database = target_db_name, tool = tool, parent = base)
 			aln.prepare_outputs()
 			to_do.append(aln)
 			count += 1
 	
-
 	#align reads
 	prog_bar = progress_tracker(total = len(to_do), message = "Aligning reads. This will take some time.")
 	run_data = []
@@ -248,14 +259,19 @@ def align_reads(project_directory, threads, tool = "diamond"):
 	
 	#Create project index:
 	index = open(os.path.normpath(project_directory+ "/ROCkOUT_index.txt"), "w")
-	print("protein_name", "reads_included", "group", "in_final_model", sep = "\t", file = index)
+	print("protein_parent", "protein_name", "read_length", "num_reads_included", "group", "in_final_model", sep = "\t", file = index)
 	for result in run_data:
 		print(*result, "T", sep = "\t", file = index)
 		
 	index.close()
 	
+	#try tar
+	#make_tarfile(os.path.basename(os.path.normpath(project_directory))+".tar", project_directory)
+	
 	print("Read alignment done!")
 
+
+	
 def run_align(aligner_object):
 	aligner_object.align()
 	#Simulated reads are usually almost entirely off-target, leaving large files that are almost entirely useless.
@@ -266,7 +282,11 @@ def run_align(aligner_object):
 	else:
 		group = "negative"
 	
-	return (aligner_object.base, aligner_object.final_read_count, group,)
+	name = aligner_object.base.split("_read_length_")
+	readlen = name[1]
+	name = name[0]
+	
+	return (aligner_object.parent, name, readlen, aligner_object.final_read_count, group,)
 	
 		
 def options():
@@ -279,6 +299,23 @@ def options():
 	args, unknown = parser.parse_known_args()
 	
 	return parser, args
+	
+def align_to_refs(parser, opts):
+	project_directory = opts.dir
+	if project_directory is None:
+		print("You need to specify a ROCkOut project directory. Quitting.")
+		print(parser.print_help())
+		quit()
+		
+	try:
+		threads = int(opts.threads)
+	except:
+		print("Threads must be an integer. Defaulting to 1 thread.")
+		threads = 1
+		
+	multiprocessing.freeze_support()
+	
+	align_reads(project_directory = project_directory, threads = threads)
 	
 def main():
 	parser, opts = options()
@@ -300,5 +337,3 @@ def main():
 	align_reads(project_directory = project_directory, threads = threads)
 	
 	
-if __name__ == "__main__":
-	main()

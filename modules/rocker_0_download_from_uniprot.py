@@ -11,6 +11,20 @@ import argparse
 This script is a revision on the original ROCker downloading functionality.
 '''
 
+def reverse_complement(seq):
+	translate = {"A":"T", "T":"A", "C":"G", "G":"C"}
+	#reverse
+	seq = seq[::-1]
+	#complement
+	seq = ''.join([translate[nt] for nt in seq])
+	return seq
+
+#This was a sanity checking function
+def print_comparison(nt_seq, aa_seq):
+	for i in range(0, len(aa_seq)):
+		codon = nt_seq[(i*3):((i+1)*3)]
+		print(codon, aa_seq[i])
+
 class download_manager:
 	def __init__(self, prot = None, outdir = None, my_index = 1, max_index = 1, positive = False):
 		self.output = os.path.normpath(outdir) + "/"
@@ -133,6 +147,7 @@ class download_manager:
 		print("    Collecting additional gene information for protein " + str(self.index), "of", str(self.total)+".", str(len(additionals)), "total sources to peruse.")
 
 		winning_translation = ""
+		winning_translation_info = None
 		
 		#Process identified proteins by downloading the relevant GFF and parsing them for useful results.
 		for p in additionals:
@@ -148,6 +163,10 @@ class download_manager:
 					this_trans = item_set[len(item_set)-1]
 					if len(this_trans) > len(winning_translation):
 						winning_translation = this_trans
+						winning_translation_info = list(item_set[:-1])
+						winning_translation_info.append(p)
+						winning_translation_info.append(gff_search_name)
+						
 					no_trans = item_set[:-1]
 					print(*no_trans, file = fh)
 					successful_tags.append(p)
@@ -159,9 +178,32 @@ class download_manager:
 				try:
 					sequence = requests.get("https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta")
 					sequence = sequence.content.decode()
+
 					fh = open(genomes_name + tag +"_fasta.txt", "w")
 					fh.write(sequence)
 					fh.close()
+					
+					if tag in winning_translation_info:
+						parent_name = winning_translation_info[0]
+						prot_name = winning_translation_info[1]
+						#python will zero index, but the genome indices are 1 indexed
+						start = int(winning_translation_info[2])-1
+						#python selection will exclude the final index; leaving this as-is works
+						end = int(winning_translation_info[3])
+						strand = winning_translation_info[4]
+						sequence = sequence.split("\n")
+						to_combine = []
+						for line in sequence:
+							if not line.startswith(">"):
+								to_combine.append(line)
+						sequence = None
+						to_combine = ''.join(to_combine)
+						nt_seq = to_combine[start:end]
+						to_combine = None
+						if strand == "-":
+							nt_seq = reverse_complement(nt_seq)
+							#print_comparison(nt_seq, winning_translation)
+					
 				except:
 					print("Could not download", "https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta for protein", self.prot)
 		
@@ -179,7 +221,15 @@ class download_manager:
 				if not os.path.exists(target_dir_name):
 					os.mkdir(target_dir_name)
 					
-				output_name = target_dir_name + self.prot + "_target_protein_AA.fasta.txt"
+				output_name = target_dir_name + self.prot + "_target_protein_AA.fasta"
+				out = open(output_name, "w")
+				print(primary_target_name, file = out)
+				print(reformatted, file = out)
+				out.close()
+				
+				reformatted = [nt_seq[i:i+60] for i in range(0, len(nt_seq), 60)]
+				reformatted = "\n".join(reformatted)
+				output_name = target_dir_name + self.prot + "_target_protein_nt.fasta"
 				out = open(output_name, "w")
 				print(primary_target_name, file = out)
 				print(reformatted, file = out)
@@ -320,22 +370,27 @@ class uniprot_downloader:
 			os.mkdir(self.outdir)			
 		if len(self.positive_set) > 0:
 			if not os.path.exists(self.posdir):
-				os.mkdir(self.posdir)				
-		if len(self.negative_set) > 0:
-			if not os.path.exists(self.negdir):
-				os.mkdir(self.negdir)
+				os.mkdir(self.posdir)
+		if self.negative_set is not None:
+			if len(self.negative_set) > 0:
+				if not os.path.exists(self.negdir):
+					os.mkdir(self.negdir)
 
 	def prepare_downloaders(self):
 		count = 1
-		total = len(self.positive_set) + len(self.negative_set)
+		total = len(self.positive_set)
+		if self.negative_set is not None:
+			total += len(self.negative_set)
+			
 		for prot in self.positive_set:
 			dl = download_manager(prot, self.posdir, my_index = count, max_index = total, positive = True)
 			self.worklist.append(dl)
 			count += 1
-		for prot in self.negative_set:
-			dl = download_manager(prot, self.negdir, my_index = count, max_index = total, positive = False)
-			self.worklist.append(dl)
-			count += 1
+		if self.negative_set is not None:
+			for prot in self.negative_set:
+				dl = download_manager(prot, self.negdir, my_index = count, max_index = total, positive = False)
+				self.worklist.append(dl)
+				count += 1
 		
 	def execute_downloads(self):
 		pool = multiprocessing.Pool(self.threads)
@@ -370,25 +425,26 @@ class uniprot_downloader:
 					pass
 			else:
 				print(pos, "positive", "succeeded", sep = "\t", file = errlog)
-					
-		for neg in self.negative_set:
-			path = os.path.normpath(self.negdir + neg + "/genomes")
-			try:
-				genome_files = os.listdir(path)
-			except:
-				genome_files = []
-			if len(genome_files) < 1:
-				print(neg, "negative", "failed", sep = "\t", file = errlog)
-				print("Uniprot ID", neg, "was empty!")
-				print("This ID may have been changed or may be missing required data on Uniprot.")
-				print("Removing this negative ID from the dataset.")
-				try:
-					shutil.rmtree(os.path.normpath(self.negdir + neg))
-				except:
-					pass
-			else:
-				print(neg, "negative", "succeeded", sep = "\t", file = errlog)
 		
+		if self.negative_set is not None:			
+			for neg in self.negative_set:
+				path = os.path.normpath(self.negdir + neg + "/genomes")
+				try:
+					genome_files = os.listdir(path)
+				except:
+					genome_files = []
+				if len(genome_files) < 1:
+					print(neg, "negative", "failed", sep = "\t", file = errlog)
+					print("Uniprot ID", neg, "was empty!")
+					print("This ID may have been changed or may be missing required data on Uniprot.")
+					print("Removing this negative ID from the dataset.")
+					try:
+						shutil.rmtree(os.path.normpath(self.negdir + neg))
+					except:
+						pass
+				else:
+					print(neg, "negative", "succeeded", sep = "\t", file = errlog)
+			
 		errlog.close()
 
 def options():
@@ -404,9 +460,8 @@ def options():
 	
 	return parser, args
 
-def main():
+def download(parser, opts):
 	multiprocessing.freeze_support()
-	parser, opts = options()
 	pos_list = opts.pos
 	neg_list = opts.neg
 	try:
@@ -415,7 +470,10 @@ def main():
 		print("Threads has to be an integer. Defaulting to 1 thread")
 		threads = 1
 
-	dirname = opts.out
+	dirname = opts.dir
+	
+	if dirname is None:
+		sys.exit("ROCkOut needs a directory name to place downloads in!")
 	
 	if pos_list is None:
 		print("Rocker needs a positive list!")
@@ -429,9 +487,7 @@ def main():
 	dl.prepare_downloaders()
 	dl.execute_downloads()
 	dl.check_results()
-
-if __name__ == "__main__":
-	main()
+	
 
 
 

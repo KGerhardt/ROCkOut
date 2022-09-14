@@ -1,7 +1,11 @@
-from dash import dash, dcc, html
+import dash
+from dash import dcc
+from dash import html
 from dash.dependencies import Input, Output, State
 from modules.rocker_4_refiner import plot_data
 import os
+
+import tarfile
 
 class rocker_gui:
 	def __init__(self):
@@ -30,6 +34,9 @@ class rocker_gui:
 			html.Div(id='loader_init', children=[
 			dcc.Upload(id = 'project_selector', filename=None),
 			dcc.Store(id = 'project_index', data={"index_file":None}),
+			
+			html.Button('Save the current model', id='save_model', n_clicks = 0),
+			dcc.Store(id='model_palceholder', data={}),
 			
 			dcc.Checklist(id='active_proteins', options = ['Load a project!'], value = ['Load a project!']),
 			dcc.Store(id = 'active_store', data={"active_prots":None}),
@@ -86,7 +93,7 @@ class rocker_gui:
 			html.Button('Get an existing model', id='download_model', n_clicks=0),
 			
 			html.Button('Save the current model', id='save_model', n_clicks = 0),
-			
+			dcc.Store(id='model_palceholder', data={}),
 				])
 			
 			elif tab == "prot_sel":
@@ -183,6 +190,21 @@ class rocker_gui:
 			else:
 				self.plot_data.active_proteins = value
 			return {"active_prots":value}
+			
+		@self.app.callback(Output('model_palceholder', 'data'),
+		Input('save_model', 'n_clicks'))
+		def output_model(n_clicks):
+			if self.plot_data.senspec is not None and n_clicks > 0:
+				#ensure the model is current.
+				self.plot_data.calculate_roc_curves()
+				#plots
+				self.plot_data.output_plots()
+				#models
+				self.plot_data.output_models()
+				#index
+				self.plot_data.update_index()
+				
+			return {}
 		
 		@self.app.callback(Output('2d_plot', 'figure'),
 			Input('2d_rl_dd', 'value'))
@@ -207,6 +229,14 @@ class rocker_gui:
 		@self.app.callback(Output('project_index', 'data'),
 			Input("project_selector", 'filename'))
 		def load_project(filename):
+			'''
+			if filename is not None:
+				tar = tarfile.open(filename)
+				files = tar.getmembers()
+				print(files)
+			else:
+				pass
+			'''
 			if filename is not None:
 				wor_dir = os.listdir(".")
 				proj_dir = None
@@ -220,12 +250,12 @@ class rocker_gui:
 					#rocker.plot_data.set_project(proj_dir)
 					self.plot_data.run_plotter(proj_dir)
 				except:
-					pass
+					print("Plotter failed!")
 					
 				return {"index_file":filename}
 			else:
 				pass
-		
+			
 		
 def main():
 	rocker = rocker_gui()
