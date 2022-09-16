@@ -42,6 +42,14 @@ Conda Installation
 conda create -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy pandas requests dash
 ```
 
+Also now using:
+* fasttree
+* pip ete3
+* mafft
+* pplacer
+* pip taxtastic
+* 
+
 # Usage
 
 If using conda, activate the environment
