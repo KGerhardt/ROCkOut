@@ -48,7 +48,7 @@ Also now using:
 * mafft
 * pplacer
 * pip taxtastic
-* 
+* pip PyQt5
 
 # Usage
 
