@@ -1,24 +1,23 @@
-ROCin notes for mcr genes.
+# ROCkIn
 
-Working folder: 03a_mcr (PACE)
+A pipeline for building ROCker models with ROCkOut
 
-I collected a set of 103 seqs from the ncbi refgene database.
-I refer to these as the curated mcr sequences.
-See pre-ROCin notes for details.
+### Dependencies
 
+ - 
 
-#######
-Step 01: UniProt sequence search
-#################################
+# Step 00: Curate reference sequences
 
-Run a search of the curated mcr sequences against the UniProt database.
-This is to look for extended sequence diversity that hasn't been curated.
+ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific. Create two fasta files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa).
 
-I selected 1 representative sequence from each of 10 mcr clades.
-Sequences within clades are highly similar and won't benefit the search.
+Specialized databases are good starting resources such as the [NCBI ref gene database] (https://www.ncbi.nlm.nih.gov/pathogens/refgene) for antibiotic resistance genes. 
 
-I named this file: ncbi_refgenes_mcr_renamed_reduced.fasta and placed it
-in the 00_curatated seqs folder.
+# Step 01: UniProt sequence search
+
+Since ROCker models are used with metagenomics data, we want to account for broad sequence diversity around the reference sequences. To do that we will perform a BLAST search of UniProt's SwissProt and TrEMBL databases.
+
+If their are multiple reference sequences with ≥90% or ≥95% sequence similarity it is suggested to select one representative sequence to use in the BLAST search as it is unlikely they will yield different search results.
+
 
 I use a script from EBI webservices to do this search in a terminal.
 

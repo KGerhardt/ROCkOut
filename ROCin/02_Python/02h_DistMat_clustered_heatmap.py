@@ -91,8 +91,8 @@ def main():
     outfile = args['output_file']
 
     # read in the tsv file with pandas.
-    df = pd.read_csv(infile, sep='\t', header=None, index_col=0)
-    df.columns = df.index
+    df = pd.read_csv(infile, sep='\t', header=0, index_col=0)
+    #df.columns = df.index
 
     print('\n\n', df)
 
