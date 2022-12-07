@@ -204,6 +204,51 @@ def add_gene_info(fasta, outpre):
     return True
 
 
+def unique_lists_for_colors(outpre):
+    """reads back the annotated file and writes out unique names lists"""
+
+    file = f'{outpre}_annotated.tsv'
+
+    clusters = {}
+    genes = {}
+    genus = {}
+    phylum = {}
+    tclass = {}
+
+    with open(file, 'r') as f:
+        header = f.readline()
+        for line in f:
+            X = line.rstrip().split('\t')
+            clusters[X[3]] = ''
+            genes[X[4]] = ''
+            genus[X[5].split(' ')[0]] = ''
+            try: tclass[name] = X[7].split(';')[2]
+            except: tclass[name] = "n/a"
+            tclass[X[7].split(';')[2]] = ''
+
+    with open(f'{outpre}_colors_clusters.tsv', 'w') as outfile:
+        for name in clusters.keys():
+            outfile.write(f'{name}\n')
+
+    with open(f'{outpre}_colors_genes.tsv', 'w') as outfile:
+        for name in genes.keys():
+            outfile.write(f'{name}\n')
+
+    with open(f'{outpre}_colors_genus.tsv', 'w') as outfile:
+        for name in genus.keys():
+            outfile.write(f'{name}\n')
+
+    with open(f'{outpre}_colors_phylum.tsv', 'w') as outfile:
+        for name in phylum.keys():
+            outfile.write(f'{name}\n')
+
+    with open(f'{outpre}_colors_class.tsv', 'w') as outfile:
+        for name in tclass.keys():
+            outfile.write(f'{name}\n')
+
+    return True
+
+
 def main():
 
     # Configure Argument Parser
@@ -262,6 +307,9 @@ def main():
     if fasta:
         print('\n\t\tAdding species and gene annotations to DataFrame ...')
         _ = add_gene_info(fasta, outpre)
+
+    # write out unique name sets for tree color annotation
+    _ = unique_lists_for_colors(outpre)
 
     print(f'\n\nComplete success space cadet!! Finished without errors.\n\n')
 
