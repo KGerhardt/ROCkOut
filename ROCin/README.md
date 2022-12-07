@@ -8,7 +8,7 @@ A pipeline for building ROCker models with ROCkOut
 
 # Step 00: Curate reference sequences
 
-ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific. Create two fasta files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa).
+ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific.
 
 Specialized databases are good starting resources such as the [NCBI ref gene database](https://www.ncbi.nlm.nih.gov/pathogens/refgene) for antibiotic resistance genes.
 
@@ -24,6 +24,8 @@ When curating sequences, it is insightful to look at a multiple sequence alignme
  > python path/to/script/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o name_your_output_file.pdf
  ```
 
+Once you have made your selections, create two fasta formatted files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa).
+
 # Step 01: UniProt sequence search
 
 Since ROCker models are used with metagenomics data, we want to account for broad sequence diversity around the reference sequences. To do that we will perform a BLAST search of UniProt's SwissProt and TrEMBL databases.
@@ -35,8 +37,7 @@ I use a script from EBI webservices to do this search in a terminal.
 
 I wrapped it in a pbs job to run on PACE.
 
-from: /storage/home/hcoda1/9/rconrad6/p-ktk3-0/02_ROCker/03a_mcr
-
+```bash
 # This returns UniProt IDs for sequence matches
 > qsub -v fasta=00b_curated_seqs/ncbi_refgenes_mcr_renamed_reduced.fasta ../00b_PBS/01a_ebi_blast.pbs
 
@@ -53,7 +54,7 @@ from: /storage/home/hcoda1/9/rconrad6/p-ktk3-0/02_ROCker/03a_mcr
 
 # concatenate to single fasta file
 > cat 01c_ebi_fasta/MCR-* >> 01c_ebi_fasta/00_MCR_all_ebi_matches.fa
-
+```
 
 #######
 Step 02: Deduplicate, Filter, ClusterReps, align, trim, tree -> annotated.tsv
