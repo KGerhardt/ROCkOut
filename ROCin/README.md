@@ -10,18 +10,18 @@ A pipeline for building ROCker models with ROCkOut
 
 ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific. Create two fasta files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa).
 
-Specialized databases are good starting resources such as the [NCBI ref gene database] (https://www.ncbi.nlm.nih.gov/pathogens/refgene) for antibiotic resistance genes.
+Specialized databases are good starting resources such as the [NCBI ref gene database](https://www.ncbi.nlm.nih.gov/pathogens/refgene) for antibiotic resistance genes.
 
 When curating sequences, it is insightful to look at a multiple sequence alignment, , a phylogenetic tree such as quick a neighbor joining tree, and/or a clustered heatmap of sequence similarity. There are many approaches to this. We will outline a quick and easy one here utilizing EBI's website and we provide a Python script to build a sequence similarity heatmap.
 
- 1. [Clustal Omega] (https://www.ebi.ac.uk/Tools/msa/clustalo/). Select Pearson/FASTA as the output format in step 2.
- 2. Download the alignment file and view it with your favorite multiple sequence alignment tool such as [AliView] (https://ormbunkar.se/aliview/).
+ 1. [Clustal Omega](https://www.ebi.ac.uk/Tools/msa/clustalo/). Select Pearson/FASTA as the output format in step 2.
+ 2. Download the alignment file and view it with your favorite multiple sequence alignment tool such as [AliView](https://ormbunkar.se/aliview/).
  3. Under the "Results Viewers" tab and select "Send to Simple Phylogeny" at the bottom of the options. In STEP 2 of Simple Phylogeny, turn on the distance correction, exclude gaps, and P.I.M. (percent identity matrix) options.
- 4. At this point you should see a phylogram of the results. You can scroll down and "View Phylogenetic Tree File" which is in newick format (.nwk). You can save this file and view/edit it with tools such as [FigTree] () or [iTol] ().
+ 4. At this point you should see a phylogram of the results. You can scroll down and "View Phylogenetic Tree File" which is in newick format (.nwk). You can save this file and view/edit it with tools such as [FigTree](http://tree.bio.ed.ac.uk/software/figtree/) or [iTol](https://itol.embl.de/).
  5. For the sequence identity heatmap, look under the "Results Summary" tab at the top of the Simple Phylogeny results page. Download the "Percent Identity Matrix" file (.pim) and use the 00a_PIM_clustered_heatmap.py Python script included in the 02_Python directory of this GitHub repo to create a heatmap figure.
 
  ```bash
- > python path/to/script/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o `name_your_output_file.pdf
+ > python path/to/script/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o name_your_output_file.pdf
  ```
 
 # Step 01: UniProt sequence search
