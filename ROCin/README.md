@@ -20,9 +20,9 @@ When curating sequences, it is insightful to look at a multiple sequence alignme
  4. At this point you should see a phylogram of the results. You can scroll down and "View Phylogenetic Tree File" which is in newick format (.nwk). You can save this file and view/edit it with tools such as [FigTree] () or [iTol] ().
  5. For the sequence identity heatmap, look under the "Results Summary" tab at the top of the Simple Phylogeny results page. Download the "Percent Identity Matrix" file (.pim) and use the 00a_PIM_clustered_heatmap.py Python script included in the 02_Python directory of this GitHub repo to create a heatmap figure.
 
- '''bash
- > python path/to/script/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o name_your_output_file.pdf
- '''
+ ```bash
+ > python path/to/script/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o `name_your_output_file.pdf
+ ```
 
 # Step 01: UniProt sequence search
 
