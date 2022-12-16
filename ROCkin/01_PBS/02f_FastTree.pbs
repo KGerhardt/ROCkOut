@@ -1,0 +1,18 @@
+#PBS -N FastTree
+#PBS -l nodes=1:ppn=1
+#PBS -l mem=5gb
+#PBS -l walltime=1:00:00:00
+#PBS -q inferno     
+#PBS -A GT-ktk3-CODA20
+#PBS -o 00a_log/02f_FastTree_${n}.out
+#PBS -e 00a_log/02f_FastTree_${n}.err
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+FastTree $input > $output
+
+## Run Log ##
+## qsub -v input=fasta.aln,output= ../00b_PBS/00d_FastTree.pbs
+## qsub -v input=LinF_CDHIT_Representatives.fltrdBstHts.aln,output=LinF_CDHIT_Representatives.fltrdBstHts.tree ../../00b_PBS/00d_FastTree.pbs 
+## qsub -v input=02a_tree_prep/03_trimmed.fasta.aln,output=02d_FastTree.nwk,n=mcr ../00b_PBS/02f_FastTree.pbs 
