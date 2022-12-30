@@ -2,10 +2,10 @@
 #PBS -l nodes=1:ppn=2
 #PBS -l mem=10gb
 #PBS -l walltime=12:00:00
-#PBS -q inferno     
-#PBS -A GT-ktk3-CODA20
-#PBS -o 00a_log/02c_mmseqs_${n}.out
-#PBS -e 00a_log/02c_mmseqs_${n}.err
+#PBS -q YOUR_QUEUE
+#PBS -A YOUR_ACCOUNT
+#PBS -o 02c_mmseqs_${n}.out
+#PBS -e 02c_mmseqs_${n}.err
 
 # Change to working directory
 cd $PBS_O_WORKDIR
@@ -33,4 +33,4 @@ mmseqs convert2fasta ${odir}/$C90rep/$C90rep ${odir}/${C90rep}.fasta
 rm -r ${odir}/tmp
 
 ## Run Log ##
-## qsub -v infile=,odir=,n= ../00b_PBS/07c_MMSeqs2_Cluster.pbs
+## qsub -v infile=,odir=,n= /Path/to/GitHub/repo/01a_PBS/02c_MMSeqs2_Cluster.pbs

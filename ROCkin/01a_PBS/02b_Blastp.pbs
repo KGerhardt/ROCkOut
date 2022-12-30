@@ -2,16 +2,16 @@
 #PBS -l nodes=1:ppn=2
 #PBS -l mem=2gb
 #PBS -l walltime=12:00:00
-#PBS -q inferno     
-#PBS -A GT-ktk3-CODA20
-#PBS -o 00a_log/02b_BlastP_${name}.out
-#PBS -e 00a_log/02b_BlastP_${name}.err
+#PBS -q YOUR_QUEUE     
+#PBS -A YOUR_ACCOUNT
+#PBS -o 02b_BlastP_${name}.out
+#PBS -e 02b_BlastP_${name}.err
 
 # Change to working directory
 cd $PBS_O_WORKDIR
 
 # Set python script directory
-scripts=/storage/coda1/p-ktk3/0/rconrad6/02_ROCker/00c_Scripts/
+scripts=/Path/to/GitHub/repo/02_Python
 
 # Load Modules Needed
 module load blast-plus/2.10.1
@@ -38,8 +38,5 @@ python ${scripts}/02b_Blastp_filter_hist.py -i ${out}.blast -o ${out}
 python ${scripts}/02c_Get_Fasta_from_Filtered_Blast.py -b ${out}.fltrdBstHts.blst -q ${qry} -o ${out}_blast_fltrd.fasta
 
 ## Run Log ##
-## qsub -v ref=OG.faa,qry=derep_representatives.faa,out=out.blast,name=name ../00b_PBS/00b_BlastP.pbs
-## qsub -v ref=01_Retrieved_Sequence/lnuF_OGs-rename.faa,qry=01_Retrieved_Sequence/LnuF_Concatenated_Deduplicated.fasta,out=01_Retrieved_Sequence/LnuF_Blast_Similar_vs_Verified,name=name ../00b_PBS/00c_Blastp.pbs
-## qsub -v ref=01_Fasta/NCBI_RefGene_lnuF-1.faa,qry=01_Fasta/LnuF_NCBI_UniProt_BlstFltrd.fasta,out=04_Blasts/LnuF_1,name=LnuF1 ../../00b_PBS/00c_Blastp.pbs 
-## qsub -v ref=01_Fasta/NCBI_RefGene_lnuF-3.faa,qry=01_Fasta/LnuF_NCBI_UniProt_BlstFltrd.fasta,out=04_Blasts/LnuF_3,name=LnuF3 ../../00b_PBS/00c_Blastp.pbs 
-## qsub -v ref=00b_curated_seqs/ncbi_refgenes_mcr_renamed_reduced.fasta,qry=02a_tree_prep/00_MCR_dedup_ebi.fa,out=02a_tree_prep/01_MCR_fltr_ebi,name=mcrA ../00b_PBS/02b_Blastp.pbs
+## qsub -v ref=OG.faa,qry=derep_representatives.faa,out=out.blast,name=name /Path/to/GitHub/repo/01a_PBS/00b_BlastP.pbs
+

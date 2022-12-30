@@ -1,0 +1,31 @@
+#PBS -N RAxML-D
+#PBS -l nodes=1:ppn=8
+#PBS -l mem=10gb
+#PBS -l walltime=24:00:00
+#PBS -q YOUR_QUEUE
+#PBS -A YOUR_ACCOUNT
+#PBS -o 02f_RAxML-D_${name}.out
+#PBS -e 02f_RAxML-D_${name}.err
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+# Load the modules for your servers RAxML or RAxML must be avialable in your PATH
+module load raxml/8.2.11-mva2
+
+# set some veriables.
+pre=`pwd`/${output}
+out=${name}.RAxML
+
+if [ ! -d ${output} ]; then mkdir ${output}; fi
+
+# Run RAxML for amino acid sequence
+# Bootstrapped maximum likelihood tree
+#raxmlHPC-PTHREADS-AVX -s ${input} -n ${out} -w ${pre} -m PROTGAMMAAUTO -f a -N autoMRE -p 4564821 -T 8 -x 1235
+
+# single ML distance tree
+raxmlHPC-PTHREADS-AVX -s ${input} -n ${out} -w ${pre} -m PROTGAMMAAUTO -f x -p 4564821 -T 8
+
+## Run Log ##
+## qsub -v input=fasta.aln,output=directory,name=jobname /Path/to/GitHub/repo/01a_PBS/02f_RAxML_AminoAcid.pbs
+

@@ -7,11 +7,21 @@
 #PBS -o 00a_log/02f_RAxML-D_${name}.out
 #PBS -e 00a_log/02f_RAxML-D_${name}.err
 
-# Load the modules for RAxML
-module load raxml/8.2.11-mva2
+#!/bin/bash
+#SBATCH -J RAxML-D
+#SBATCH -q YOUR_QUEUE
+#SBATCH -A YOUR_ACCOUNT
+#SBATCH -N 1 --ntasks-per-node=8
+#SBATCH --mem=10G
+#SBATCH -t 4:00:00:00
+#SBATCH -o 02f_RAxML-D.out
+#SBATCH -e 02f_RAxML-D.err
 
 # Change to working directory
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
+
+# Load the modules for your servers RAxML or RAxML must be avialable in your PATH
+module load raxml/8.2.11-mva2
 
 # set some veriables.
 pre=`pwd`/${output}
@@ -27,6 +37,5 @@ if [ ! -d ${output} ]; then mkdir ${output}; fi
 raxmlHPC-PTHREADS-AVX -s ${input} -n ${out} -w ${pre} -m PROTGAMMAAUTO -f x -p 4564821 -T 8
 
 ## Run Log ##
-## qsub -v input=fasta.aln,output=directory,name=jobname ../00b_PBS/00d_RAxML_AminoAcid.pbs
-## qsub -v input=01_Retrieved_Sequence/trimal_LnuF_Blast_Similar_vs_Verified_blast_fltrd.fasta.aln,output=02_RAxML,name=LnuF_filtered_trimmed ../00b_PBS/00d_RAxML_AminoAcid.pbs
-## qsub -v input=02a_tree_prep/03_trimmed.fasta.aln,output=04a_RAxML-Distance,name=MCL_distance ../00b_PBS/02f_RAxML_AminoAcid-Distance.pbs 
+## sbatch --export input=fasta.aln,output=directory,name=jobname /Path/to/GitHub/repo/01b_Sbatch/02f_RAxML_AminoAcid.sbatch
+
