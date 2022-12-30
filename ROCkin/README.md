@@ -16,7 +16,7 @@ To use the provide PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the 
  - [RAxML](https://cme.h-its.org/exelixis/web/software/raxml/)
  - [Python](https://www.python.org/)
 
- *Python it's packages and all program above can be installed with [Conda](https://docs.conda.io/en/latest/miniconda.html).*
+ *Python, it's packages, and all program above can be installed with [Conda](https://docs.conda.io/en/latest/miniconda.html).*
 
  #### References
 
@@ -40,11 +40,19 @@ When curating sequences, it is insightful to look at a multiple sequence alignme
  2. Download the alignment file and view it with your favorite multiple sequence alignment tool such as [AliView](https://ormbunkar.se/aliview/).
  3. Under the "Results Viewers" tab and select "Send to Simple Phylogeny" at the bottom of the options. In STEP 2 of Simple Phylogeny, turn on the distance correction, exclude gaps, and P.I.M. (percent identity matrix) options.
  4. At this point you should see a phylogram of the results. You can scroll down and "View Phylogenetic Tree File" which is in newick format (.nwk). You can save this file and view/edit it with tools such as [FigTree](http://tree.bio.ed.ac.uk/software/figtree/) or [iTol](https://itol.embl.de/).
- 5. For the sequence identity heatmap, look under the "Results Summary" tab at the top of the Simple Phylogeny results page. Download the "Percent Identity Matrix" file (.pim) and use the 00a_PIM_clustered_heatmap.py Python script included in the 02_Python directory of this GitHub repo to create a heatmap figure.
+
+ ![Example Phylogenetic tree]()
+
+ 5. For the sequence similarity heatmap, look under the "Results Summary" tab at the top of the Simple Phylogeny results page. Download the "Percent Identity Matrix" file (.pim) and use the 00a_PIM_clustered_heatmap.py Python script included in the 02_Python directory of this GitHub repo to create a heatmap figure.
 
  ```bash
  python /Path/to/GitHub/repo/02_Python/00a_PIM_clustered_heatmap.py -i your_files_name.pim -o name_your_output_file.pdf
+
+ # for script options and info
+ python /Path/to/GitHub/repo/02_Python/00a_PIM_clustered_heatmap.py -h
  ```
+
+ ![Example Figure of sequence similarity heatmap]()
 
 Once you have made your selections, create two fasta formatted files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa). We will call these RefSeqs.fnn and RefSeqs.faa.
 
