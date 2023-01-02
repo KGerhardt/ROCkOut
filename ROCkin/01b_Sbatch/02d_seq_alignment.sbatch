@@ -21,5 +21,5 @@ fi
 clustalo -i $newseqs -o ${newseqs}.aln --profile1 ${verified}.aln --threads 12
 
 ## Run Log:
-## sbatch --export verified=,newseqs=,n= /Path/to/GitHub/repo/01b_Sbatch/02d_seq_alignment.sbatch
+## sbatch --export verified=,newseqs= /Path/to/GitHub/repo/01b_Sbatch/02d_seq_alignment.sbatch
 

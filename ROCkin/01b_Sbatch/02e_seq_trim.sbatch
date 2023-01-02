@@ -21,4 +21,4 @@ ${trimal} -in ${input} -out ${output} -resoverlap 0.75 -seqoverlap 80 -automated
 ## -seqoverlap: Minimum percentage of "good positions" that a sequence must have in order to be conserved. Range: [0 - 100](see User Guide).
 
 ## Run Log ##
-## sbatch --export input=fasta.aln,output=fasta.aln,n= /Path/to/GitHub/repo/01b_Sbatch/02e_seq_trim.sbatch
+## sbatch --export input=fasta.aln,output=fasta.aln /Path/to/GitHub/repo/01b_Sbatch/02e_seq_trim.sbatch

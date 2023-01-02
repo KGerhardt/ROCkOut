@@ -4,8 +4,8 @@
 #PBS -l walltime=12:00:00
 #PBS -q YOUR_QUEUE
 #PBS -A YOUR_ACCOUNT
-#PBS -o 02e_seq_trim_${n}.out
-#PBS -e 02e_seq_trim_${n}.err
+#PBS -o 02e_seq_trim.out
+#PBS -e 02e_seq_trim.err
 
 # Change to working directory
 cd $PBS_O_WORKDIR
@@ -20,4 +20,4 @@ ${trimal} -in ${input} -out ${output} -resoverlap 0.75 -seqoverlap 80 -automated
 ## -seqoverlap: Minimum percentage of "good positions" that a sequence must have in order to be conserved. Range: [0 - 100](see User Guide).
 
 ## Run Log ##
-## qsub -v input=fasta.aln,output=fasta.aln,n= /Path/to/GitHub/repo/01a_PBS/02e_seq_trim.pbs
+## qsub -v input=fasta.aln,output=fasta.aln /Path/to/GitHub/repo/01a_PBS/02e_seq_trim.pbs

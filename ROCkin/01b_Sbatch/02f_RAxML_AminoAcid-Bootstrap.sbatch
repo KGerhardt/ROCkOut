@@ -24,5 +24,5 @@ if [ ! -d ${output} ]; then mkdir ${output}; fi
 raxmlHPC-PTHREADS-AVX -s ${input} -n ${out} -w ${pre} -m PROTGAMMAAUTO -f a -N autoMRE -p 4564821 -T 8 -x 1235
 
 ## Run Log ##
-## sbatch --export input=fasta.aln,output=directory,name=jobname /Path/to/GitHub/repo/01b_Sbatch/002f_RAxML_AminoAcid-Bootstrap.sbatch
+## sbatch --export input=fasta.aln,output=directory /Path/to/GitHub/repo/01b_Sbatch/002f_RAxML_AminoAcid-Bootstrap.sbatch
 

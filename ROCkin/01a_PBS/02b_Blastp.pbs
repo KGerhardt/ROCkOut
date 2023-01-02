@@ -4,8 +4,8 @@
 #PBS -l walltime=12:00:00
 #PBS -q YOUR_QUEUE     
 #PBS -A YOUR_ACCOUNT
-#PBS -o 02b_BlastP_${name}.out
-#PBS -e 02b_BlastP_${name}.err
+#PBS -o 02b_BlastP.out
+#PBS -e 02b_BlastP.err
 
 # Change to working directory
 cd $PBS_O_WORKDIR
@@ -38,5 +38,5 @@ python ${scripts}/02b_Blastp_filter_hist.py -i ${out}.blast -o ${out}
 python ${scripts}/02c_Get_Fasta_from_Filtered_Blast.py -b ${out}.fltrdBstHts.blst -q ${qry} -o ${out}_blast_fltrd.fasta
 
 ## Run Log ##
-## qsub -v ref=OG.faa,qry=derep_representatives.faa,out=out.blast,name=name /Path/to/GitHub/repo/01a_PBS/00b_BlastP.pbs
+## qsub -v ref=OG.faa,qry=derep_representatives.faa,out=out.blast /Path/to/GitHub/repo/01a_PBS/00b_BlastP.pbs
 

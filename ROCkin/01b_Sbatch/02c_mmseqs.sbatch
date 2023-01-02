@@ -19,7 +19,7 @@ DB=02_mmseqsDB
 mkdir ${odir}/$DB
 mmseqs createdb $infile ${odir}/$DB/$DB --dbtype 1
 
-# Cluster at 90% nucleotide ID
+# Cluster input sequences at 90% amino acid sequence identity
 C90=02_mmseqs_results
 mkdir ${odir}/$C90
 mmseqs cluster ${odir}/$DB/$DB ${odir}/$C90/$C90 tmp --min-seq-id 0.90 --cov-mode 1 -c 0.5 --cluster-mode 2 --cluster-reassign --threads 2
@@ -34,4 +34,4 @@ mmseqs convert2fasta ${odir}/$C90rep/$C90rep ${odir}/${C90rep}.fasta
 rm -r ${odir}/tmp
 
 ## Run Log ##
-## sbatch --export infile=,odir=,n= /Path/to/GitHub/repo/01b_Sbatch/27c_MMSeqs2_Cluster.sbatch
+## sbatch --export infile=,odir= /Path/to/GitHub/repo/01b_Sbatch/27c_MMSeqs2_Cluster.sbatch

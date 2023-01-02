@@ -1,8 +1,8 @@
 # ROCkIn
 
-A pipeline to prepare for building ROCker models with ROCkOut
+The preparation pipeline for building ROCker models with ROCkOut
 
-This pipeline walks the researcher through the process of collecting the sequence information necessary to build and refine ROCker models for any functional gene group of interest. The steps involve a combination of Python and Bash. Both PBS and Sbatch scripts are provided for users with access to a compute cluster.
+This pipeline walks the researcher through the process of collecting the necessary sequence information needed to build and refine ROCker models for any functional gene group of interest. The steps involve a combination of Python, Bash, and bioinformatics tools. Examples are provided for PBS and Sbatch job schedulers for users with access to a compute cluster.
 
 To use the provide PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the path to your local copy of this Github repo, and replace all the "YOUR_PROMPTs" with the relevant information.
 
@@ -10,11 +10,11 @@ To use the provide PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the 
 
 - [BLAST+](https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE_TYPE=BlastDocs&DOC_TYPE=Download)
 - [MMseqs2](https://github.com/soedinglab/MMseqs2)
- - [Clustal Omega](http://www.clustal.org/omega/)
- - [TrimAl](http://trimal.cgenomics.org/)
- - [FastTree](http://www.microbesonline.org/fasttree/)
- - [RAxML](https://cme.h-its.org/exelixis/web/software/raxml/)
- - [Python](https://www.python.org/)
+- [Clustal Omega](http://www.clustal.org/omega/)
+- [TrimAl](http://trimal.cgenomics.org/)
+- [FastTree](http://www.microbesonline.org/fasttree/)
+- [RAxML](https://cme.h-its.org/exelixis/web/software/raxml/)
+- [Python](https://www.python.org/)
 
  *Python, it's packages, and all program above can be installed with [Conda](https://docs.conda.io/en/latest/miniconda.html).*
 
@@ -30,15 +30,15 @@ To use the provide PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the 
 
 # PART 00: Curate reference sequences
 
-ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific.
+ROCker model building starts with a set of curated reference sequences. Curation of these sequences is up to the researcher building the model and they should be either experimentally verified or highly specific. **You must start with a reliable set of gene sequences for gene function you wish to study.**
 
 Specialized databases are a good starting resources such as the [NCBI ref gene database](https://www.ncbi.nlm.nih.gov/pathogens/refgene) for antibiotic resistance genes.
 
-When curating sequences, it is insightful to look at a multiple sequence alignment, , a phylogenetic tree such as a quick neighbor joining tree, and/or a clustered heatmap of sequence similarity. There are many approaches to this. We will outline a quick and easy one here utilizing EBI's website and we provide a Python script to build a sequence similarity heatmap.
+When curating sequences, it is insightful to look at a multiple sequence alignment, a phylogenetic tree such as a quick neighbor joining tree, and/or a clustered heatmap of sequence similarity. There are many approaches to this. We will outline a quick and easy one here utilizing EBI's website and we provide a Python script to build a sequence similarity heatmap from results.
 
  1. [Clustal Omega](https://www.ebi.ac.uk/Tools/msa/clustalo/). Select Pearson/FASTA as the output format in step 2.
  2. Download the alignment file and view it with your favorite multiple sequence alignment tool such as [AliView](https://ormbunkar.se/aliview/).
- 3. Under the "Results Viewers" tab and select "Send to Simple Phylogeny" at the bottom of the options. In STEP 2 of Simple Phylogeny, turn on the distance correction, exclude gaps, and P.I.M. (percent identity matrix) options.
+ 3. Under the "Results Viewers" tab, select "Send to Simple Phylogeny" at the bottom of the options. In STEP 2 of Simple Phylogeny, turn on the distance correction, exclude gaps, and P.I.M. (percent identity matrix) options.
  4. At this point you should see a phylogram of the results. You can scroll down and "View Phylogenetic Tree File" which is in newick format (.nwk). You can save this file and view/edit it with tools such as [FigTree](http://tree.bio.ed.ac.uk/software/figtree/) or [iTol](https://itol.embl.de/).
  5. For the sequence similarity heatmap, look under the "Results Summary" tab at the top of the Simple Phylogeny results page. Download the "Percent Identity Matrix" file (.pim) and use the 00a_PIM_clustered_heatmap.py Python script included in the 02_Python directory of this GitHub repo to create a heatmap figure.
 
@@ -51,20 +51,21 @@ When curating sequences, it is insightful to look at a multiple sequence alignme
 
  ![Example Figure of sequence similarity heatmap](https://github.com/KGerhardt/ROCkOut/blob/main/ROCkin/05_Example_Figs/00_Example-A.png)
 
-Once you have made your selections, create two fasta formatted files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa). We will call these RefSeqs.fnn and RefSeqs.faa.
+Once you have made your selections, create two fasta formatted files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa). We will call these RefSeqs.fnn and RefSeqs.faa. Example files can be found in the 06_Example_Files directory of this repo.
 
 # PART 01 01: UniProt sequence search
 
 Since ROCker models are used with metagenomics data, we want to account for broad sequence diversity around the reference sequences. To do this, we will perform a BLAST search of UniProt's SwissProt and TrEMBL databases.
 
-If there are multiple reference sequences with ≥90% or ≥95% sequence similarity it is suggested to select one representative sequence to use in the BLAST search as it is unlikely they will yield different search results.
+If there are multiple reference sequences with ≥90% or ≥95% sequence similarity it is suggested to select one representative sequence to use in the BLAST search as it is unlikely they will yield different search results. This will save computational time and make the figures easier to interpret.
 
-I use a script from EBI webservices to access and Blast search the UniProt database programmatically. This returns a separate text file of UniProt IDs for sequence matches for each fasta sequence in the input file.
+EBI webservices provides code to access and Blast search the UniProt database programmatically. Similar to searching through the UniProt website, this will query the database remotely and use EBI resources to perform the Blast search. The results are returned as a separate text files contianing one UniProt ID per match for each sequence in the input fasta file (RefSeqs.faa). For more information see [https://www.ebi.ac.uk/Tools/webservices/](https://www.ebi.ac.uk/Tools/webservices/).
+
 ```bash
 # path to ebi blast script
 ebi_blast='Path/to/GitHub/repo/02_Python/01a_ebi_ncbiblast.py'
 
-# executes the command Run 30 sequences at a time from 1 fasta file.
+# executes the command Run 30 sequences at a time from 1 fasta file returning 1000 matches (alignments) per query sequence.
 python ${ebi_blast} --email YOUR_EMAIL --program blastp --stype protein \
 --sequence RefSeqs.faa --database uniprotkb --multifasta --useSeqId --maxJobs 30 --pollFreq 60 \
 --outformat ids --exp 10 --alignments 1000
@@ -75,7 +76,13 @@ PBS example:
 qsub -v fasta=RefSeqs.faa /Path/to/GitHub/repo/01a_PBS/01a_ebi_blast.pbs
 ```
 
-Then we have to do a few extra steps with the Blast results to get the fasta sequences we need. First we download the .dat file corresponding to the UniProt IDs from our Blast search. We will use dbfetch to retrieve the .dat file for each UniProt ID from each fasta sequence.
+Sbatch example:
+```bash
+sbatch --export fasta=RefSeqs.faa /Path/to/GitHub/repo/01b_Sbatch/01a_ebi_blast.sbatch
+```
+
+Once we have the Blast results, there are a few additional steps to get the corresponding fasta sequences that we need. First, we will use dbfetch to retrieve the .dat file for each UniProt ID returned from the blast search.
+
 ```bash
 # file house keeping
 mkdir 01a_ebi_blast_ids 01b_ebi_dat 01c_ebi_fasta
@@ -93,7 +100,14 @@ PBS example:
 for f in 01a_ebi_blast_ids/*; do odir='01b_ebi_dat'; gene=`basename $f | cut -d. -f1`; echo $gene; if [ ! -d ${odir}/${gene} ]; then mkdir ${odir}/${gene}; fi; qsub -v input=${f},odir=${odir},gene=${gene} /Path/to/GitHub/repo/01a_PBS/01b_ebi_dbfetch.pbs; done
 ```
 
-Now we can parse the .dat file to retrieve the fasta sequence for each UniProt ID returned by the Blast search. We will store additional relevant info from the .dat file in the fasta sequence deflines.
+Sbatch example:
+```bash
+# Download the *.dat files from EBI with dbfetch
+for f in 01a_ebi_blast_ids/*; do odir='01b_ebi_dat'; gene=`basename $f | cut -d. -f1`; echo $gene; if [ ! -d ${odir}/${gene} ]; then mkdir ${odir}/${gene}; fi; sbatch --export input=${f},odir=${odir},gene=${gene}  /Path/to/GitHub/repo/01b_Sbatch/01b_ebi_dbfetch.sbatch; done
+```
+
+Now we will parse the .dat file to retrieve the corresponding fasta sequences, and we will use the fasta deflines to store additional relevant information.
+
 ```bash
 for d in 01b_ebi_dat/*; do n=`basename $d`; echo $n; python /Path/to/GitHub/repo/02_Python/01d_parse_dat_file.py -i $d -o 01c_ebi_fasta/${n}.fasta; done
 
@@ -101,18 +115,20 @@ for d in 01b_ebi_dat/*; do n=`basename $d`; echo $n; python /Path/to/GitHub/repo
 cat 01c_ebi_fasta/MCR-* >> 01c_ebi_fasta/ALL_EBI_BLAST_MATCHES.faa
 ```
 
+At this point we have a single file (ALL_EBI_BLAST_MATCHES.faa) containing all the fasta sequences from the UniProt database that returned a match to our curated RefSeqs.faa.
+
 # PART 02: Deduplicate, Filter, ClusterReps, align, trim, tree -> annotated.tsv
 
-Setup directories
-```bash
-mkdir 02a_tree_prep
-```
+Our goal is to build a phylogenetic tree with our curated sequences (RefSeqs.faa) and known surrounding sequence diversity (ALL_EBI_BLAST_MATCHES.faa) that we will use to make decisions about positive and negative sequence sets for training the ROCker model.
 
 #### Step 1: Deduplicate
 
-Since we have multiple verified sequences that we searched to UniProt, we likely have found overlapping search results. Concatenate fasta files of all search result sequences and deduplicate by UniProt ID. I wrote a Python script to deduplicate the concatenated fasta
+Since we have multiple verified sequences that we searched to UniProt, we likely have found overlapping search results. I wrote a Python script to deduplicate the concatenated fasta.
 
 ```bash
+# setup directories
+mkdir 02a_tree_prep
+# Remove duplicates in fasta file
 python /Path/to/GitHub/repo/02_Python/02a_Remove_Duplicate_Fasta_Entries.py -f 01c_ebi_fasta/ALL_EBI_BLAST_MATCHES.faa -o 02a_tree_prep/DEDUP_EBI_BLAST_MATCHES.faa
 ```
 
@@ -142,100 +158,165 @@ scripts=/Path/to/GitHub/repo/02_Python
 python ${scripts}/02b_Blastp_filter_hist.py -i 02a_tree_prep/FILTER_EBI_BLAST_MATCHES.blast -o 02a_tree_prep/FILTER_EBI_BLAST_MATCHES.fltrd.blast
 # retrieve fasta sequences matches filtered blast results
 python ${scripts}/02c_Get_Fasta_from_Filtered_Blast.py -b 02a_tree_prep/FILTER_EBI_BLAST_MATCHES.fltrd.blast -q 02a_tree_prep/DEDUP_EBI_BLAST_MATCHES.faa -o 02a_tree_prep/FILTER_EBI_BLAST_MATCHES.faa
-
 ```
+
+![Example histogram figures for Blast sequence alignments.](https://github.com/KGerhardt/ROCkOut/blob/main/ROCkin/05_Example_Figs/02_Example-B.png)
 
 PBS example:
 ```bash
-qsub -v ref=RefSeqs.faa,qry=02a_tree_prep/DEDUP_EBI_BLAST_MATCHES.faa,out=02a_tree_prep/FILTER_EBI_BLAST_MATCHES.faa,name=genename /Path/to/GitHub/repo/01a_PBS/02b_Blastp.pbs
+qsub -v ref=RefSeqs.faa,qry=02a_tree_prep/DEDUP_EBI_BLAST_MATCHES.faa,out=02a_tree_prep/FILTER_EBI_BLAST_MATCHES.faa /Path/to/GitHub/repo/01a_PBS/02b_Blastp.pbs
+```
+
+Sbatch Example:
+```bash
+sbatch --export ref=RefSeqs.faa,qry=02a_tree_prep/DEDUP_EBI_BLAST_MATCHES.faa,out=02a_tree_prep/FILTER_EBI_BLAST_MATCHES.faa /Path/to/GitHub/repo/01b_Sbatch/00b_BlastP.sbatch
 ```
 
 #### Step 3: ClusterReps
 
-If you have few than hundreds of sequences at this point you can skip this step. This step reduces the number of sequences by clustering them at 90% amino acid sequence similarity and choosing one reference sequence for each cluster.
+If you have fewer than hundreds of searched sequences (FILTER_EBI_BLAST_MATCHES.faa) at this point you can skip this step. This step reduces the number of sequences by clustering them at 90% amino acid sequence similarity and choosing one reference sequence for each cluster.
 
 Cluster with MMSeqs2
 ```bash
-
+# setup directories
+mkdir 02b_mmseqs
+mkdir 02b_mmseqs/temp
+# create mmseqs database
+mmseqs createdb 02a_tree_prep/FILTER_EBI_BLAST_MATCHES.faa 02b_mmseqs/MyDB01 --dbtype 1
+# Cluster input sequences at 90% amino acid sequence identity
+mmseqs cluster 02b_mmseqs/MyDB01 02b_mmseqs/MyDB02 02b_mmseqs/temp --min-seq-id 0.90 --cov-mode 1 -c 0.5 --cluster-mode 2 --cluster-reassign
+# convert to tsv format
+mmseqs createtsv 02b_mmseqs/MyDB01 02b_mmseqs/MyDB01 02b_mmseqs/MyDB02 02a_tree_prep//mmseqs_90.tsv
+# Get the representative sequence for each cluster in fasta format
+mmseqs createsubdb 02b_mmseqs/MyDB02 02b_mmseqs/MyDB01 02b_mmseqs/MyDB03
+mmseqs convert2fasta 02b_mmseqs/MyDB03 02a_tree_prep/mmseqs_reps.fasta
+# Count the number of representative sequences
+grep -c '>' 02a_tree_prep/mmseqs_reps.fasta
 ```
-
 
 PBS Example:
 ```bash
-> qsub -v infile=02a_tree_prep/01_MCR_fltr_ebi_blast_fltrd.fasta,odir=02a_tree_prep,n=mcr ../00b_PBS/02c_mmseqs.pbs
-
-> grep -c '>' 02a_tree_prep/02_mmseqs_reps.fasta
+qsub -v infile=02a_tree_prep/01_MCR_fltr_ebi_blast_fltrd.fasta,odir=02a_tree_prep ../00b_PBS/02c_mmseqs.pbs
 ``` 
+
+Sbatch Example:
+```bash
+sbatch --export infile=02a_tree_prep/01_MCR_fltr_ebi_blast_fltrd.fasta,odir=02a_tree_prep /Path/to/GitHub/repo/01b_Sbatch/27c_MMSeqs2_Cluster.sbatch
+```
 
 #### Step 4: Align
 
-sequence alignment with clustal omega
-
-For this I am first building an alignment with the 10 curated sequences and then fitting the searched sequences to that alignment. This runs clustal omega twice.
+We need a good multiple sequence alignment to build the phylogenetic tree. We'll start with an alignment using only the curated sequences (RefSeqs.faa). We can check this alignment with something like [AliView](https://ormbunkar.se/aliview/) and make manual adjustments if necessary, then we'll align the searched sequences (mmseqs_reps.fasta) to this alignment.
 
 ```bash
-> qsub -v verified=00b_curated_seqs/ncbi_refgenes_mcr_renamed_reduced.fasta,newseqs=02a_tree_prep/02_mmseqs_reps.fasta,n=mcr ../00b_PBS/02d_seq_alignment.pbs
+# First align the curated sequences
+clustalo -i RefSeqs.faa -o 02a_tree_prep/RefSeqs.aln
+# then align the searched sequences to that alignment
+clustalo -i 02a_tree_prep/mmseqs_reps.fasta -o 02a_tree_prep/my_MSA.aln --profile1 02a_tree_prep/RefSeqs.aln
+```
 
-sequences before trimming
-> grep -c '>' 02_mmseqs_reps.fasta.aln
-Sequences before trimming: 1120 (1110 searched + 10 curated)
+PBS Example:
+```bash
+qsub -v verified=RefSeqs.faa,newseqs=02a_tree_prep/mmseqs_reps.fasta /Path/to/GitHub/repo/01a_PBS/02d_seq_alignment.pbs
+``` 
+
+Sbatch Example:
+```bash
+sbatch --export verified=RefSeqs.faa,newseqs=02a_tree_prep/mmseqs_reps.fasta /Path/to/GitHub/repo/01b_Sbatch/02d_seq_alignment.sbatch
 ```
 
 #### Step 5: Trim
 
-trim the alignment with trimmal
+Before building a phylogenetic tree, MSAs should be cleaned to removed spurious sequences and columns consisting mainly of gaps. TrimAl's algorithm does a pretty good and quick job, but it is still recommended to inspect the alignment manually as well with something like [AliView](https://ormbunkar.se/aliview/).
 
-Before building a phylogenetic tree, MSAs should be cleaned to removed spurious sequences and columns consisting mainly of gaps.
-
-I'm using trimmal for this
+We're using the following two parameters for TrimAl ([User Guide](http://trimal.cgenomics.org/)):
+    - resoverlap: Minimum overlap of a positions with other positions in the column to be considered a "good position". Range: [0 - 1].
+    - seqoverlap: Minimum percentage of "good positions" that a sequence must have in order to be conserved. Range: [0 - 100].
 
 ```bash
-> qsub -v input=02a_tree_prep/02_mmseqs_reps.fasta.aln,output=02a_tree_prep/03_trimmed.fasta.aln,n=mcr ../00b_PBS/02e_seq_trim.pbs
+trimal -in 02a_tree_prep/my_MSA.aln -out 02a_tree_prep/my_MSA_trimmed.aln -resoverlap 0.75 -seqoverlap 80 -automated1
 
 # count sequences after trimming
-> grep -c '>' 03_trimmed.fasta.aln
-Sequences after trimming: 1119
+grep -c '>' 02a_tree_prep/my_MSA_trimmed.aln
+```
 
+At his point the sequence names look something like this:
+>A0A8E0FMZ4_ECOLX//Arylsulfatase//Escherichia
+
+Which is really hard to look at on the tips of the tree. This script splits at the '//' leaving only the uniprot id to be display at the tree leaves.
+>A0A8E0FMZ4_ECOLX
+
+```bash
 # clean up sequence names for the tree.
-> python ../00c_Scripts/02e_clean_seq_names.py -i 02a_tree_prep/03_trimmed.fasta.aln
+# this script alters the file in place. no new file created.
+python /Path/to/GitHub/repo/02_Python/02e_clean_seq_names.py -i 02a_tree_prep/my_MSA_trimmed.aln
+```
+
+PBS Example:
+```bash
+qsub -v input=02a_tree_prep/my_MSA.aln,output=02a_tree_prep/my_MSA_trimmed.aln /Path/to/GitHub/repo/01a_PBS/02e_seq_trim.pbs
+``` 
+
+Sbatch Example:
+```bash
+sbatch --export input=02a_tree_prep/my_MSA.aln,output=02a_tree_prep/my_MSA_trimmed.aln /Path/to/GitHub/repo/01b_Sbatch/02e_seq_trim.sbatch
 ```
 
 #### Step 6: Tree
 
-Build phylogenetic tree with RAxML
+Now that we have a good multiple sequence alignment, we are ready to build the tree. Here is an example with FastTree and RAxML. FastTree is recomended unless you are using a cluster. RAxML has very long run times. This step will provide you with Newick formated files than can be viewed/edited with tools such as [FigTree](http://tree.bio.ed.ac.uk/software/figtree/) or [iTol](https://itol.embl.de/).
+
 
 ```bash
-# single ML Distance tree
-> qsub -v input=02a_tree_prep/03_trimmed.fasta.aln,output=04a_RAxML-Distance,name=MCL_distance ../00b_PBS/02f_RAxML_AminoAcid-Distance.pbs 
+FastTree 02a_tree_prep/my_MSA_trimmed.aln > 02a_tree_prep/Tree_FastTree.nwk
+``` 
 
-# bootstrapped ML tree
-> qsub -v input=02a_tree_prep/03_trimmed.fasta.aln,output=04b_RAxML-Bootstrap,name=MCL_bootstrap ../00b_PBS/02f_RAxML_AminoAcid-Bootstrap.pbs
+PBS Example:
+```bash
+# bootstrapped ML tree w/ RAxML
+qsub -v input=02a_tree_prep/my_MSA_trimmed.aln,output=02a_tree_prep/Tree_Bootstrap /Path/to/GitHub/repo/01a_PBS/02f_RAxML_AminoAcid-Bootstrap.pbs
 
 # Fasttree - approximate maximum likelihood tree
-> qsub -v input=02a_tree_prep/03_trimmed.fasta.aln,output=04c_FastTree.nwk,n=mcr ../00b_PBS/02f_FastTree.pbs 
+qsub -v input=02a_tree_prep/my_MSA_trimmed.aln,output=02a_tree_prep/Tree_FastTree.nwk /Path/to/GitHub/repo/01a_PBS/02f_FastTree.pbs 
 ```
 
-#### Step 7: Organize annotations
+Sbatch Example:
+```bash
+sbatch --export input=02a_tree_prep/my_MSA_trimmed.aln,output=02a_tree_prep/Tree_Bootstrap /Path/to/GitHub/repo/01b_Sbatch/002f_RAxML_AminoAcid-Bootstrap.sbatch
 
-create annotated tsv file to explore clades.
+sbatch --export input=02a_tree_prep/my_MSA_trimmed.aln,output=02a_tree_prep/Tree_FastTree.nwk /Path/to/GitHub/repo/01b_Sbatch/02f_FastTree.sbatch
+```
 
-To further inform our decisions from the tree, we want to know which species and functional annotations are in each clade. To do this I wrote python code that uses the branch distance from the tree to create a distance matrix which is used in clustering algorithms. It gets clades from the the tree as clusters and creates a tsv file with species and annotation information for each sequence.
+#### Step 7: Organize annotations and plot phylogenetic tree with cluster/clade labels
+
+Create an organized an annotated tsv file to explore clustered clades and make decisions for ROCkOut inputs. The annotation informat is pulled from the fasta deflines where we stored the information from the .dat files back at the begining and organized into columns. The branch distances are calculated between all sequences and the HDBSCAN algorithm is used to cluster the sequences into initial clades.
+
+This step creates a .tsv (Easily opened in Excel) that contains the UniProt IDs, assigned cluster, functional annotation, and taxonomic classification for each sequence. It aslo plots a tree figure with the leaf nodes color labelled by assigned cluster. The .tsv file follows the order of the tree figure. The sequences in the .tsv file can be reodered/reassigned based on visual inspection of the tree figure, and the researcher can decide clades for positive and/or negative reference sequences based on these results. Once the researcher has made their selections, simply copy and paste the UniProt IDs into a positive.txt and a negative.txt file (one ID per line). Then insert the text files into the ROCkOut pipeline.
+
+*The HDBSCAN algorithm assigns many -1's to sequences that fall outside what the algorithm has determined to be the cluster boundaries. The algorithm isn't perfect at building the clades, it is just a quick way to get started. The researcher can quickly reassign -1's into the appropriate clades while making their selections*
 
 ```bash
 # concatenate the curated sequences and the dereplicated filtered searched sequences
-> cat 00b_curated_seqs/ncbi_refgenes_mcr_renamed_reduced.fasta 02a_tree_prep/02_mmseqs_reps.fasta >> 02a_tree_prep/04_MCR_sequence_set.fasta
+cat RefSeqs.faa 02a_tree_prep/mmseqs_reps.fasta >> 02a_tree_prep/final_sequence_set.fasta
 
 # setup directory
-> mkdir 05a_Clade_info_distance 05b_Clade_info_bootstrap 05c_Clade_info_fasttree
+mkdir 02c_Annoted_Tree
+
+# Set python script directory
+scripts=/Path/to/GitHub/repo/02_Python
 
 # convert nwk to distance matrix, cluster the matrix and add annotations
 
-# RAxML Distance
-> python ../00c_Scripts/02g_Tree_Distance_Cluster.py -i 04a_RAxML-Distance/RAxML_parsimonyTree.MCL_distance.RAxML -o 05a_Clade_info_distance/05a_Clade_info_distance -f 02a_tree_prep/04_MCR_sequence_set.fasta
+# For RAxML Bootstrap
+python ${scripts}/02g_Tree_Distance_Cluster.py -i 02a_tree_prep/Tree_Bootstrap_bestTree.MCL_bootstrap.RAxML -f 02a_tree_prep/final_sequence_set.fasta -o 02c_Annoted_Tree/Cluster_annotations
 
-# RAxML Bootstrap
-> python ../00c_Scripts/02g_Tree_Distance_Cluster.py -i 04a_RAxML-Distance/RAxML_parsimonyTree.MCL_distance.RAxML -o 05b_Clade_info_bootstrap/05b_Clade_info_bootstrap -f 02a_tree_prep/04_MCR_sequence_set.fasta
+python ${scripts}/02i_Plot_Annotated_Tree_v2.py -n 02a_tree_prep/Tree_Bootstrap_bestTree.MCL_bootstrap.RAxML -a 02c_Annoted_Tree/Cluster_annotations_annotated.tsv -o ROCker_prep_tree.pdf
 
-# Fasttree
-> python ../00c_Scripts/02g_Tree_Distance_Cluster.py -i 04c_FastTree.nwk -o 05c_Clade_info_fasttree/05c_Clade_info_fasttree -f 02a_tree_prep/04_MCR_sequence_set.fasta
+# or for Fasttree
+python ${scripts}/02g_Tree_Distance_Cluster.py -i 02a_tree_prep/Tree_FastTree.nwk -f 02a_tree_prep/final_sequence_set.fasta -o 02c_Annoted_Tree/Cluster_annotations
+
+python ${scripts}/02i_Plot_Annotated_Tree_v2.py -n 02a_tree_prep/02a_tree_prep/Tree_FastTree.nwk -a 02c_Annoted_Tree/Cluster_annotations_annotated.tsv -o ROCker_prep_tree.pdf
 ```
+
+![Example phylogenetic tree labelled by assigned cluster/clade.](https://github.com/KGerhardt/ROCkOut/blob/main/ROCkin/05_Example_Figs/07_Example-C.png)
+

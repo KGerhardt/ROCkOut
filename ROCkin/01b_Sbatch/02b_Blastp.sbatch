@@ -40,5 +40,5 @@ python ${scripts}/02b_Blastp_filter_hist.py -i ${out}.blast -o ${out}
 python ${scripts}/02c_Get_Fasta_from_Filtered_Blast.py -b ${out}.fltrdBstHts.blst -q ${qry} -o ${out}_blast_fltrd.fasta
 
 ## Run Log ##
-## sbatch --export ref=OG.faa,qry=derep_representatives.faa,out=out.blast,name=name /Path/to/GitHub/repo/01b_Sbatch/00b_BlastP.sbatch
+## sbatch --export ref=OG.faa,qry=derep_representatives.faa,out=out.blast /Path/to/GitHub/repo/01b_Sbatch/00b_BlastP.sbatch
 
