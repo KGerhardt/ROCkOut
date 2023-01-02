@@ -4,7 +4,7 @@ The preparation pipeline for building ROCker models with ROCkOut
 
 This pipeline walks the researcher through the process of collecting the necessary sequence information needed to build and refine ROCker models for any functional gene group of interest. The steps involve a combination of Python, Bash, and bioinformatics tools. Examples are provided for PBS and Sbatch job schedulers for users with access to a compute cluster.
 
-To use the provide PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the path to your local copy of this Github repo, and replace all the "YOUR_PROMPTs" with the relevant information.
+To use the provided PBS or Sbatch scripts replace "PATH/to/GitHub/repo" with the path to your local copy of this Github repo, and replace all the "YOUR_PROMPTs" with the relevant information.
 
 ## Dependencies
 
@@ -51,7 +51,7 @@ When curating sequences, it is insightful to look at a multiple sequence alignme
 
  ![Example Figure of sequence similarity heatmap](https://github.com/KGerhardt/ROCkOut/blob/main/ROCkin/05_Example_Figs/00_Example-A.png)
 
-Once you have made your selections, create two fasta formatted files that share the same short meaningful defline names. One should have the nucleotide sequence (.fnn) and the other should have the amino acid sequence (.faa). We will call these RefSeqs.fnn and RefSeqs.faa. Example files can be found in the 06_Example_Files directory of this repo.
+Once you have made your selections, create a fasta formatted file with the amino acid sequences and short meaningful defline names. We will refer this file of curated sequences as RefSeqs.faa. Example file can be found in the 06_Example_Files directory of this repo.
 
 # PART 01 01: UniProt sequence search
 
