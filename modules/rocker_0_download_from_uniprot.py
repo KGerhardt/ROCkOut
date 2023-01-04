@@ -52,6 +52,7 @@ class download_manager:
 			
 		#Extract the text in binary; decode to string
 		annot_data = annot_data.content.decode()
+				
 		#Save the annotation
 		annot_name = os.path.normpath(self.output + self.prot + "/initial_annotation") + "/"
 		if not os.path.exists(annot_name):
@@ -63,8 +64,11 @@ class download_manager:
 		#Split the annotation into single lines
 		annot_data = annot_data.split('\n')
 		
-		primary_target_name = ">UNIPROT:"
+		#primary_target_name = ">UNIPROT__"
+		primary_target_name = [">UNIPROT__", []]
+
 		gff_search_name = ""
+		
 		
 		#We'll have to get the proteins listed under this annotation; this stores those prots
 		my_translations = {}
@@ -77,9 +81,11 @@ class download_manager:
 				#ID   ERMC1_STAAU             Reviewed;         244 AA.
 			
 				segs = line.strip().split()
-				primary_target_name += segs[1]
-				primary_target_name += " "
-				primary_target_name += self.prot
+				primary_target_name[0] += segs[1]
+				primary_target_name[0] += "__"
+				primary_target_name[0] += self.prot
+				primary_target_name[0] += "__"
+				
 			if line.startswith("DE"):
 				segs = line.strip().split()
 				if segs[1] == "RecName:":
@@ -95,8 +101,9 @@ class download_manager:
 					gff_search_name = usable
 					
 					usable = "(" + usable + ")"
-					primary_target_name += " "
-					primary_target_name += usable
+					#primary_target_name += " "
+					#primary_target_name += usable
+					primary_target_name[1].append(usable)
 				if segs[1] == "AltName:":
 					#Same as above, but we don't need to separately keep the name
 					#Matches this format:
@@ -105,8 +112,9 @@ class download_manager:
 					usable = ' '.join(segs[2:])
 					usable = usable[5:(len(usable)-1)]
 					usable = "(" + usable + ")"
-					primary_target_name += " "
-					primary_target_name += usable
+					#primary_target_name += " "
+					#primary_target_name += usable
+					primary_target_name[1].append(usable)
 					
 				if segs[1].startswith("EC="):
 					#Same as alt name, modified to match this format:
@@ -116,8 +124,9 @@ class download_manager:
 					usable = ' '.join(segs[1:])
 					usable = usable[3:(len(usable) - 1)]
 					usable = "(" + usable + ")"
-					primary_target_name += " "
-					primary_target_name += usable
+					#primary_target_name += " "
+					#primary_target_name += usable
+					primary_target_name[1].append(usable)
 		
 			if line.startswith("DR   EMBL;") and line.endswith("Genomic_DNA."):
 				segs = line.split("; ")
@@ -128,6 +137,8 @@ class download_manager:
 				my_translations[protein_name] = protein_strand
 		
 		additionals = list(set(additionals))
+		
+		primary_target_name[1] = ' '.join(primary_target_name[1])
 		
 		protein_listings = []
 		
@@ -149,91 +160,149 @@ class download_manager:
 		winning_translation = ""
 		winning_translation_info = None
 		
+		#wts = []
+		wt_info = []
+		#tags = []
+		
+		wts = {}
+		#Nucleotide seqs
+		nts = {}
+		
 		#Process identified proteins by downloading the relevant GFF and parsing them for useful results.
 		for p in additionals:
-			
 			one_file = self.download_gffs(p, gff_search_name)
+			#print(one_file)
 			formatted_results = []
 			successful_tags = []
+			gen_tags = {}
 			
 			#Record coordinates for use later.
 			fh = open(coords_name + p +"_coords.txt", "w")
 			for item_set in one_file:
+				#print(item_set[0:4])
 				if item_set[0] in additionals or item_set[1] in my_translations:
+					#print(item_set)
+					tag = item_set[1]
+					wts[tag] = {}
+					
+					if p not in gen_tags:
+						gen_tags[p] = [tag]
+					else:
+						gen_tags[p].append(tag)
+					
+					
 					this_trans = item_set[len(item_set)-1]
+					
+					#wts[tag]["seq_prot"] = this_trans
+					
+					to_add = list(item_set[:-1])
+					to_add.append(p)
+					to_add.append(gff_search_name)
+					
+					#print(to_add)
+					wts[tag]['info'] = to_add
+					wts[tag]['seq'] = this_trans
+					#wt_info.append(to_add)
+					#tags.append(to_add[5])
+					
+					'''
 					if len(this_trans) > len(winning_translation):
 						winning_translation = this_trans
 						winning_translation_info = list(item_set[:-1])
 						winning_translation_info.append(p)
 						winning_translation_info.append(gff_search_name)
-						
+					'''
+					
 					no_trans = item_set[:-1]
 					print(*no_trans, file = fh)
 					successful_tags.append(p)
 					
 			fh.close()
 			
+			successful_tags = list(set(successful_tags))
+			
+			
 			#Get the FNA from the sequences
-			for tag in successful_tags:
+			for protein in successful_tags:
 				try:
-					sequence = requests.get("https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta")
+					sequence = requests.get("https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+protein+"/fasta")
 					sequence = sequence.content.decode()
-
-					fh = open(genomes_name + tag +"_fasta.txt", "w")
+			
+					fh = open(genomes_name + protein +".fasta", "w")
 					fh.write(sequence)
 					fh.close()
 					
-					if tag in winning_translation_info:
-						parent_name = winning_translation_info[0]
-						prot_name = winning_translation_info[1]
-						#python will zero index, but the genome indices are 1 indexed
-						start = int(winning_translation_info[2])-1
-						#python selection will exclude the final index; leaving this as-is works
-						end = int(winning_translation_info[3])
-						strand = winning_translation_info[4]
-						sequence = sequence.split("\n")
-						to_combine = []
-						for line in sequence:
-							if not line.startswith(">"):
-								to_combine.append(line)
-						sequence = None
-						to_combine = ''.join(to_combine)
-						nt_seq = to_combine[start:end]
-						to_combine = None
-						if strand == "-":
-							nt_seq = reverse_complement(nt_seq)
-							#print_comparison(nt_seq, winning_translation)
+					sequence = sequence.split("\n")
+					to_combine = []
+					for line in sequence:
+						if not line.startswith(">"):
+							to_combine.append(line)
+					sequence = None
+					to_combine = ''.join(to_combine)
 					
+					tt = None
+					for tag in gen_tags[protein]:
+						tt = tag
+						if tag in wts:
+							parent_name = wts[tag]['info'][0]
+							prot_name = wts[tag]['info'][1]
+							#python will zero index, but the genome indices are 1 indexed
+							start = int(wts[tag]['info'][2])-1
+							#python selection will exclude the final index; leaving this as-is works
+							end = int(wts[tag]['info'][3])
+							strand = wts[tag]['info'][4]
+							
+							infl = [parent_name, prot_name, start, end, strand]
+							
+							nt_seq = to_combine[start:end]
+							if strand == "-":
+								nt_seq = reverse_complement(nt_seq)
+								
+							nts[tag] = nt_seq
+							
 				except:
-					print("Could not download", "https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+tag+"/fasta for protein", self.prot)
-		
-		print("    Protein", str(self.index), "complete!")
-
-		if len(winning_translation) == 0:
-			winning_translation = None	
-		#We only want the positive prots here
-		if self.is_pos:
-			#When the sequence is positive and we have a winning answer, we print the AA seq to a file.
-			if winning_translation is not None:
-				reformatted = [winning_translation[i:i+60] for i in range(0, len(winning_translation), 60)]
-				reformatted = "\n".join(reformatted)
-				target_dir_name = os.path.normpath(self.output + self.prot + "/target_protein") + "/"
-				if not os.path.exists(target_dir_name):
-					os.mkdir(target_dir_name)
+					print("Could not download", "https://www.ebi.ac.uk/Tools/dbfetch/dbfetch/embl/"+protein+"/fasta for protein", self.prot)
+					print(tt, "was the failing tag")
 					
-				output_name = target_dir_name + self.prot + "_target_protein_AA.fasta"
-				out = open(output_name, "w")
-				print(primary_target_name, file = out)
-				print(reformatted, file = out)
-				out.close()
+			to_combine = None
+
+		#Implicitly skipped when wts is empty
+		if len(wts) > 0:
+			target_dir_name = os.path.normpath(self.output + self.prot + "/target_protein") + "/"
+			
+			if not os.path.exists(target_dir_name):
+				os.mkdir(target_dir_name)
 				
+			aa_output_name = target_dir_name + self.prot + "_target_protein_AA.fasta"
+			nt_output_name = target_dir_name + self.prot + "_target_protein_nt.fasta"
+
+			aaout = open(aa_output_name, "w")
+			ntout = open(nt_output_name, "w")
+			
+			for tag in wts:
+				current_protein = wts[tag]['info'][1]
+				
+				print_name = primary_target_name[0] + current_protein + " " + primary_target_name[1]
+				#print_name = primary_target_name
+				#print_name = print_name.format(this_protein = current_protein)
+				trans = wts[tag]['seq']
+				
+				reformatted = [trans[i:i+60] for i in range(0, len(trans), 60)]
+				reformatted = "\n".join(reformatted)
+
+				print(print_name, file = aaout)
+				print(reformatted, file = aaout)
+				
+				nt_seq = nts[tag]
 				reformatted = [nt_seq[i:i+60] for i in range(0, len(nt_seq), 60)]
 				reformatted = "\n".join(reformatted)
-				output_name = target_dir_name + self.prot + "_target_protein_nt.fasta"
-				out = open(output_name, "w")
-				print(primary_target_name, file = out)
-				print(reformatted, file = out)
-				out.close()
+				print(print_name, file = ntout)
+				print(reformatted, file = ntout)
+			
+			aaout.close()
+			ntout.close()
+			
+		print("    Protein", str(self.index), "complete!")
 			
 		return None
 		

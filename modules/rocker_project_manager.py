@@ -174,8 +174,21 @@ class project_manager:
 						if base not in self.targets_nt:
 							self.targets_nt[base] = []
 						self.targets_nt[base].append(relevant_directory + c)
+		
+		for base in self.negative:
+			relevant_directory = os.path.normpath(self.negative[base] + "/" + relevant_name) + "/"
+			if os.path.exists(relevant_directory):
+				files = listdir_mac_purge(relevant_directory)
+				for c in files:
+					if c.endswith("AA.fasta"):
+						if base not in self.targets:
+							self.targets[base] = []
+						self.targets[base].append(relevant_directory + c)
+					else:
+						if base not in self.targets_nt:
+							self.targets_nt[base] = []
+						self.targets_nt[base].append(relevant_directory + c)
 						
-		#There is no negative side to the targets, so it's omitted here.
 		if self.active_targets is None:
 			self.active_targets = self.targets
 		

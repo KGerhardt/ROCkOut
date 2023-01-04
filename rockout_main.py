@@ -141,18 +141,14 @@ def run_add(parser, opts):
 	pass
 	
 def run_build(parser, opts):
-	from modules.rocker_1_generate_reads import generate
-	from modules.rocker_2_tag_reads import tag_reads
-	from modules.rocker_3_align_to_refs import align_to_refs
+	from modules.rocker_read_simulation import build_project
 	
-	generate(parser, opts)
-	tag_reads(parser, opts)
-	align_to_refs(parser, opts)
-	
+	build_project(parser, opts)
 	
 def run_refine(parser, opts):
-	from modules.rocker_4_refiner import non_interactive
-	non_interactive(parser, opts)
+	from modules.rocker_dash import run_rocker_dash
+	#run_rocker_dash(parser, opts)
+	run_rocker_dash()
 	
 def run_refine_non_interactive(parser, opts):
 	from modules.rocker_4_refiner import non_interactive
@@ -170,8 +166,10 @@ def run_pplace_build(parser, opts):
 
 
 def main():
+	valid_actions = ['download', 'build', 'refine', 'refine-ni', 'align', 'filter', 'pplace-prep']
+
 	if len(sys.argv) < 2:
-		print("ROCkOut needs to be given an action! One of  'download', 'add', 'build', 'refine', 'refine-ni', 'align-and-filter', 'filter'")
+		print("ROCkOut needs to be given an action! One of:", valid_actions)
 		sys.exit("You can also do rocker install-check to see if all of the appropriate dependencies are installed.")
 	
 	action = sys.argv[1]
@@ -183,27 +181,23 @@ def main():
 		else:
 			sys.exit("At least one dependency is not installed properly. Not all behaviors of ROCkOut will be available.")
 	
-	valid_actions = ['download', 'mult-aln', 'add', 'build', 'refine', 'refine-non-interactive', 'align', 'filter', 'pplace-prep']
+	
 	if action not in valid_actions:
 		print("Action '" + str(action) + "' not recognized.")
-		sys.exit("The action must be one of 'download', 'mult-aln', 'add', 'build', 'refine', 'refine-non-interactive', 'align-and-filter', 'filter', 'pplace-prep'")
+		sys.exit("The action must be one of:", valid_actions)
 		
 	parser, opts = options(action)
 	
 	if action == "download":
 		run_download(parser, opts)
 		
-	if action == 'mult-aln':
-		run_ma(parser, opts)
-		
 	if action == "build":
 		run_build(parser, opts)
 		
 	if action == "refine":
-		pass
-		#run_refine(parser, opts)
+		run_refine(parser, opts)
 		
-	if action == "refine-non-interactive":
+	if action == "refine-ni":
 		run_refine_non_interactive(parser, opts)
 		
 	if action == "pplace-prep":
