@@ -34,9 +34,9 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 # Dependencies
 
-- BBMap
-- Muscle
-- Mafft
+- [BBMap](https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmap-guide/)
+- [Muscle](https://github.com/rcedgar/muscle)
+- [Mafft](https://mafft.cbrc.jp/alignment/software/)
 - [Diamond](https://github.com/bbuchfink/diamond)
 - [Pplacer](https://github.com/matsen/pplacer)
 - [FastTree](http://www.microbesonline.org/fasttree/)
@@ -44,6 +44,9 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 #### References
 
+ 1. Bushnell B. BBMap: a fast, accurate, splice-aware aligner. Lawrence Berkeley National Lab.(LBNL), Berkeley, CA (United States); 2014 Mar 17.
+ 1. Edgar RC. MUSCLE v5 enables improved estimates of phylogenetic tree confidence by ensemble bootstrapping. BioRxiv. 2021 Jan 1.
+ 1. Katoh K, Standley DM. MAFFT multiple sequence alignment software version 7: improvements in performance and usability. Molecular biology and evolution. 2013 Jan 16;30(4):772-80.
  1. Li C, Gao M, Yang W, Zhong C, Yu R. Diamond: a multi-modal DIA mass spectrometry data processing pipeline. Bioinformatics. 2021 Jan 15;37(2):265-7.
  1. Matsen FA, Kodner RB, Armbrust E. pplacer: linear time maximum-likelihood and Bayesian phylogenetic placement of sequences onto a fixed reference tree. BMC bioinformatics. 2010 Dec;11(1):1-6.
  1. Price, M.N., Dehal, P.S., and Arkin, A.P. (2010) FastTree 2 -- Approximately Maximum-Likelihood Trees for Large Alignments. PLoS ONE, 5(3):e9490. doi:10.1371/journal.pone.0009490.
@@ -53,16 +56,21 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 - [pandas](https://pandas.pydata.org/) 
 - [numpy](https://numpy.org/)
-- requests
-- dash
+- [requests](https://requests.readthedocs.io/en/latest/)
+- [dash](https://dash.plotly.com/introduction)
 - [ete3](http://etetoolkit.org/)
 - [taxtastic](https://github.com/fhcrc/taxtastic)
-- pyqt
+- [pyqt](https://www.riverbankcomputing.com/software/pyqt/)
 
 #### References
 
 1. McKinney W, others. Data structures for statistical computing in python. In: Proceedings of the 9th Python in Science Conference. 2010. p. 51–6.
 1. Harris CR, Millman KJ, van der Walt SJ, Gommers R, Virtanen P, Cournapeau D, et al. Array programming with NumPy. Nature. 2020;585:357–62.
+1. Reitz K, Cordasco I, Prewitt N. Requests: HTTP for humans. KennethReitz [Internet]. https://requests.readthedocs.io/en/latest/. 2023.
+1. https://dash.plotly.com/introduction
+1. Huerta-Cepas J, Serra F, Bork P. ETE 3: reconstruction, analysis, and visualization of phylogenomic data. Molecular biology and evolution. 2016 Feb 26;33(6):1635-8.
+1. https://github.com/fhcrc/taxtastic
+1. https://www.riverbankcomputing.com/software/pyqt/
 
 #### Conda Installation
 
