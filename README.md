@@ -32,23 +32,45 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 
 * Model building - The use of a sliding window for determining the best cutoffs for a model make sense, but having to rerun that whole step to see a new window doesn't. The data should just all be loaded and sliced as needed on the interactive page.
 
-# Installation
+# Dependencies
 
-Install with conda or install individual dependencies separately and make them available in the system PATH.
+- BBMap
+- Muscle
+- Mafft
+- [Diamond](https://github.com/bbuchfink/diamond)
+- [Pplacer](https://github.com/matsen/pplacer)
+- [FastTree](http://www.microbesonline.org/fasttree/)
+- [Python](https://www.python.org/) 3.7+
 
-Conda Installation
+#### References
+
+ 1. Li C, Gao M, Yang W, Zhong C, Yu R. Diamond: a multi-modal DIA mass spectrometry data processing pipeline. Bioinformatics. 2021 Jan 15;37(2):265-7.
+ 1. Matsen FA, Kodner RB, Armbrust E. pplacer: linear time maximum-likelihood and Bayesian phylogenetic placement of sequences onto a fixed reference tree. BMC bioinformatics. 2010 Dec;11(1):1-6.
+ 1. Price, M.N., Dehal, P.S., and Arkin, A.P. (2010) FastTree 2 -- Approximately Maximum-Likelihood Trees for Large Alignments. PLoS ONE, 5(3):e9490. doi:10.1371/journal.pone.0009490.
+ 1. Sanner MF. Python: a programming language for software integration and development. J Mol Graph Model. 1999 Feb 1;17(1):57-61.
+
+#### Python Packages
+
+- [pandas](https://pandas.pydata.org/) 
+- [numpy](https://numpy.org/)
+- requests
+- dash
+- [ete3](http://etetoolkit.org/)
+- [taxtastic](https://github.com/fhcrc/taxtastic)
+- pyqt
+
+#### References
+
+1. McKinney W, others. Data structures for statistical computing in python. In: Proceedings of the 9th Python in Science Conference. 2010. p. 51–6.
+1. Harris CR, Millman KJ, van der Walt SJ, Gommers R, Virtanen P, Cournapeau D, et al. Array programming with NumPy. Nature. 2020;585:357–62.
+
+#### Conda Installation
+
+*All dependecies can be installed using conda*
 
 ```bash
-conda create -n ROCkOut -c bioconda -c conda-forge python=3.7 bbmap=38.93 muscle=3.8.31 diamond numpy pandas requests dash
+conda create -p /storage/home/hcoda1/9/rconrad6/p-ktk3-0/apps/testROCk -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft pplacer taxtastic pyqt
 ```
-
-Also now using:
-* fasttree
-* pip ete3
-* mafft
-* pplacer
-* pip taxtastic
-* pip PyQt5
 
 # Usage
 
@@ -62,21 +84,19 @@ Before building the model, ROCkIn is used to develop a list of positive sequence
 
 Manually create a simple text file with one UniProt ID per line. Create one file for the positive IDs (POS) and optionally negative IDs (NEG). Do no leave any blank lines at the end or beginning of the these files.
 
-ROCkOut usage is as follows:
+Run ROCker as a series of steps.
 
-For additional details for each script type: python scriptname.py -h
+For additional details for each script type: python scriptname.py OPTION -h
 
 *OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
 
-```bash
-python rockout_main.py download [-h] [-d OUT] [-p POS] [-n NEG] [-t THREADS] [-q QUIET]
-```
+To build a ROCker model:
+1. Download
+1. Build
 
 ```bash
-python rocker_0_download_from_uniprot.py [-h] [-p POS] [-n NEG] [-t THREADS] [-o OUT]
-python rocker_1_generate_reads.py [-h] [-t THREADS] [-o OUT]
-python rocker_2_tag_reads.py [-h] [-t THREADS] [-o OUT]
-python rocker_3_align_to_refs.py [-h] [-t THREADS] [-o OUT]
+python rockout_main.py download [-h] [-d OUT] [-p POS] [-n NEG] [-t THREADS] [-q QUIET]
+python rockout_main.py build [-h] [-d OUT] 
 ```
 
 Then run the rocker_dash.py script and open the IP address it gives in your web browser (copy and paste). Drag and drop or select the ROCkOUT_index.txt file that was created in the [OUT] directory.
@@ -85,4 +105,11 @@ Then run the rocker_dash.py script and open the IP address it gives in your web 
 python rocker_dash.py
 ```
 
+Additional optional steps:
+1. Refine
+1. refine-ni
+1. align
 
+To Use a ROCker model:
+1. filter 
+1. pplace-prep
