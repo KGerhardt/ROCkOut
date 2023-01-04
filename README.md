@@ -69,6 +69,10 @@ For additional details for each script type: python scriptname.py -h
 *OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
 
 ```bash
+python rockout_main.py download [-h] [-d OUT] [-p POS] [-n NEG] [-t THREADS] [-q QUIET]
+```
+
+```bash
 python rocker_0_download_from_uniprot.py [-h] [-p POS] [-n NEG] [-t THREADS] [-o OUT]
 python rocker_1_generate_reads.py [-h] [-t THREADS] [-o OUT]
 python rocker_2_tag_reads.py [-h] [-t THREADS] [-o OUT]
