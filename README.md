@@ -77,7 +77,19 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 *All dependecies can be installed using conda*
 
 ```bash
-conda create -p /storage/home/hcoda1/9/rconrad6/p-ktk3-0/apps/testROCk -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft pplacer taxtastic pyqt
+conda create -n ROCker -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft pplacer taxtastic pyqt
+```
+
+If using an M1 Mac you need to tell conda to use the old osx-64 architecture for several of the program dependencies to install through conda. For more details see [this article](https://towardsdatascience.com/how-to-manage-conda-environments-on-an-apple-silicon-m1-mac-1e29cb3bad12).
+
+*pplacer is not currently supported for conda install on m1 macs. ROCker will still work just not for the final (and optional) pplacer step unless you go through the hassle to manually install pplacer. It may be possible to run it using the precompiled binaries https://github.com/matsen/pplacer/releases and adding pplacer to your system PATH.*
+
+```bash
+# For M1 MAC as of Jan 2023
+CONDA_SUBDIR=osx-64 conda create -n ROCker -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft taxtastic pyqt
+conda activate ROCker
+conda config --env --set subdir osx-64
+conda install -c bioconda pplacer
 ```
 
 # Usage
