@@ -138,7 +138,7 @@ def run_build(parser, opts):
 	build_project(parser, opts)
 	
 def run_refine(parser, opts):
-	from modules.rocker_dash import run_rocker_dash
+	from modules.rocker_3_dash import run_rocker_dash
 	#run_rocker_dash(parser, opts)
 	run_rocker_dash()
 	
