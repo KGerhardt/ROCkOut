@@ -10,7 +10,7 @@
 
 cd $SLURM_SUBMIT_DIR
 
-rockout="/storage/scratch1/9/rconrad6/ROCkOut/ROCkOut/rockout_main.py"
+rockout="/PATH/TO/GIT/REPO/ROCkOut/rockout_main.py"
 
 # Download the data
 python ${rockout} download -d ${dir} -p ${pos} -n ${neg} -t 10
@@ -19,7 +19,7 @@ python ${rockout} download -d ${dir} -p ${pos} -n ${neg} -t 10
 python ${rockout} build -d ${dir} -t 10
 
 # Generate the plots
-python ${rockout} refine-ni -d ${dir} -t 10
+python ${rockout} refine-ni -d ${dir}
 
 ## Run Log
-## sbatch --export dir=model,pos=pos.txt,neg=neg.txt ../../00b_sbatch/ROCkOut.sbatch
+## sbatch --export dir=model,pos=pos.txt,neg=neg.txt /PATH/TO/GIT/REPO/ROCkOut/ROCkOut.sbatch
