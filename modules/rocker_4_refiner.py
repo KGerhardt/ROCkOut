@@ -140,6 +140,7 @@ class plot_data:
 				#read length
 				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
 				#Initialize this list.
+				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
 					
@@ -192,8 +193,10 @@ class plot_data:
 				title = components[0]
 				#read length
 				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
+				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
+					
 				fh = open(file)
 				for line in fh:
 					#This is blast data.
@@ -238,6 +241,17 @@ class plot_data:
 		self.active_proteins = set()
 			
 		self.max_position = 0
+		
+		#If reads were attempted to be added
+		to_remove = []
+		for rl in self.loaded_data:
+			if len(self.loaded_data[rl]) == 0:
+				to_remove.append(rl)
+		
+		for rl in to_remove:
+			discard = self.loaded_data.pop(rl)
+			
+		discard = None
 		
 		for rl in self.loaded_data:
 			self.loaded_data[rl] = pd.DataFrame(self.loaded_data[rl])
