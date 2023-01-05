@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 
-
 import plotly.express as px
 import plotly.graph_objs as go
 
@@ -15,14 +14,19 @@ def import_rocker_project(project_directory):
 	manager.parse_aligns()
 	return manager
 	
-	
 class plot_data:
 	def __init__(self):
 		self.project_dir = None
 		self.index = None
 		self.manager = None
 		
+		self.multiple_alignment = None
+		
 		self.description = None
+		
+		self.offsets = None
+		self.multiple_align_size = 0
+		self.valid_targets = None
 		
 		self.read_files = None
 		self.loaded_data = None
@@ -54,25 +58,83 @@ class plot_data:
 			self.index = os.path.normpath(project_directory + "/ROCkOUT_index.txt")
 			self.manager = project_manager(project_directory)
 			self.manager.parse_project_directory()
+			self.manager.parse_targets()
 			self.manager.parse_aligns()
+			self.manager.parse_multiple_alignment()
+			
+			self.prepare_offsets() #load a MA and determine position by position offset for each target protein.
+			self.find_valid_targets()
+
 			self.load_reads()
 			
-			self.load_from_index()
+			#self.load_from_index()
 			
 			self.successful_load = True
 			print("Project loaded!")
 		except:
 			print("Couldn't parse directory!")
 			self.successful_load = False
+		
+	def prepare_offsets(self):
+		current_seq = ""
+		current_prot = ""
+		self.offsets = {}
+		fh = open(self.manager.mult_aln_files['aln_aa'])
+		for line in fh:
+			if line.startswith(">"):
 			
+				if len(current_seq) > 0:
+					self.offsets[current_prot] = current_seq
+					current_seq = ""
+					
+				current_prot = line.strip().split()[0][1:]
+			else:
+				current_seq += line.strip()
+				
+		fh.close()
+		#Final iteration
+		if len(current_seq) > 0:
+			self.offsets[current_prot] = current_seq
+			self.multiple_align_size = len(current_seq) #All seqlens are identical with multiple alignment.
+		
+		
+		for p in self.offsets:
+			offset_list = []
+			offset = 0
+			#print(self.offsets[p])
+			for character in self.offsets[p]:
+				if character == "-":
+					offset += 1
+				else:
+					offset_list.append(offset)
+				
+			offset_list = np.array(offset_list, dtype = np.int32)
+			self.offsets[p] = offset_list
+
+	def find_valid_targets(self):
+		self.valid_targets = []
+		self.manager.parse_coords()
+		for prot in self.manager.targets:
+			for file in self.manager.targets[prot]:
+				if '/positive/' in file:
+					fh = open(file)
+					for line in fh:
+						if line.startswith(">"):
+							next_item = line.strip().split()[0][1:]
+							self.valid_targets.append(next_item)
+					fh.close()
+				
+		self.valid_targets = set(self.valid_targets)
+		
 	def load_reads(self):
 		self.loaded_data = {}
+		
 		for alignments in self.manager.alignments_pos:
 			for file in self.manager.alignments_pos[alignments]:
 				#File names contain info and always have the same seps. 
 				#To avoid OS issues, we just get the name after the final '/' in the path with os.basename
 				relevant = os.path.basename(file)
-				components = relevant.split("_read_length_")
+				components = relevant.split("_read_len_")
 				#Specific protein name
 				title = components[0]
 				#read length
@@ -80,25 +142,40 @@ class plot_data:
 				#Initialize this list.
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
+					
 				fh = open(file)
 				for line in fh:
 					#This is blast data.
 					segs = line.strip().split("\t")
 					#target, off-target, or negative.
 					read_classifier = segs[0].split(";")
+					read_id = segs[0]
 					read_classifier = read_classifier[len(read_classifier)-1]
 					alignment_target = segs[1]
+					
+					if alignment_target not in self.valid_targets:
+						continue
+						
 					alignment_range = [int(segs[8]), int(segs[9])]
+					
 					start = min(alignment_range)
 					end = max(alignment_range)
-					midpt = int((start+end)/2)
+					
+					mid_finder = np.arange(start-1, end-1)
+					
+					offset_locs = mid_finder + self.offsets[alignment_target][mid_finder]
+					midpt = np.median(offset_locs)
+					
+					#start, end = start + offset_locs[start], end + offset_locs[end]
+					#midpt = np.median(self.offsets[alignment_target][mid_finder])
+					
+					#midpt = int((start+end)/2)
 					
 					bitscore = float(segs[11])
 					
-					
 					double_key = alignments + ", " + title
 					
-					data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, double_key, )
+					data = (read_id, avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, double_key, )
 					
 					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
 					
@@ -106,16 +183,15 @@ class plot_data:
 				fh.close()
 				
 		for alignments in self.manager.alignments_neg:
-				
 			for file in self.manager.alignments_neg[alignments]:
 				#File names contain info and always have the same seps. 
 				#To avoid OS issues, we just get the name after the final '/' in the path with os.basename
 				relevant = os.path.basename(file)
-				components = relevant.split("_read_length_")
+				components = relevant.split("_read_len_")
 				#Specific protein name
 				title = components[0]
 				#read length
-				avg_read_length = components[1].split("_aligned_reads.txt")[0]
+				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
 				fh = open(file)
@@ -123,19 +199,36 @@ class plot_data:
 					#This is blast data.
 					segs = line.strip().split("\t")
 					#target, off-target, or negative.
-					read_classifier = segs[0].split(";")
-					read_classifier = read_classifier[len(read_classifier)-1]
+					#read_classifier = segs[0].split(";")
+					#read_classifier = read_classifier[len(read_classifier)-1]
+					read_id = segs[0]
+					read_classifier = "Negative" # We do not need to check this for negatives
 					alignment_target = segs[1]
+			
+					if alignment_target not in self.valid_targets:
+						continue			
+			
 					alignment_range = [int(segs[8]), int(segs[9])]
 					start = min(alignment_range)
 					end = max(alignment_range)
-					midpt = int((start+end)/2)
+					
+					#print(alignment_range)
+					mid_finder = np.arange(start-1, end-1)
+					
+					offset_locs = mid_finder + self.offsets[alignment_target][mid_finder]
+					midpt = np.median(offset_locs)
+					#midpt = int()
+					
+					#midpt = np.median(self.offsets[alignment_target][mid_finder])
+					#include offsets. I am not sure this is correct yet.
+					#midpt = int((start + offset_locs[start] + end + offset_locs[end])/2)
+					#midpt = int((start + end)/2)
 					
 					bitscore = float(segs[11])
 					
 					double_key = alignments + ", " + title
 					
-					data = (avg_read_length, alignments, title, read_classifier, alignment_target, 
+					data = (read_id, avg_read_length, alignments, title, read_classifier, alignment_target, 
 					midpt, start, end, bitscore, double_key, )
 					
 					self.loaded_data[avg_read_length].append(data)
@@ -145,18 +238,21 @@ class plot_data:
 		self.active_proteins = set()
 			
 		self.max_position = 0
-			
+		
 		for rl in self.loaded_data:
 			self.loaded_data[rl] = pd.DataFrame(self.loaded_data[rl])
-			self.loaded_data[rl].columns = ["read_length", "parent", "protein", 
+			self.loaded_data[rl].columns = ["read_id", "read_length", "parent", "protein", 
 			"classifier", "target", "midpoint", "start", "end", "bitscore", "UniProt ID, protein name"]
+			
+			#clean the dataframes to best hit by read
+			self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
 			
 			#Add max as needed.
 			self.max_position = max(self.max_position, max(self.loaded_data[rl]["end"]))
 			self.active_parents = self.active_parents.union(self.loaded_data[rl]["parent"])
 			self.active_proteins = self.active_proteins.union(self.loaded_data[rl]["protein"]) 
 			
-			
+		#print(self.loaded_data)
 			
 		self.readlens = list(self.loaded_data.keys())
 		self.current_read_len = min(self.readlens)
@@ -200,17 +296,32 @@ class plot_data:
 			per_position_data = {"Target" : {}, "Confounder": {}}
 			for vbin in vert_bins:
 				#The range is always 0:max_pos
-				per_position_data["Target"][vbin] = np.zeros(self.max_position, dtype = np.int32)
-				per_position_data["Confounder"][vbin] = np.zeros(self.max_position, dtype = np.int32)
+				#per_position_data["Target"][vbin] = np.zeros(self.max_position, dtype = np.int32)
+				per_position_data["Target"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
+				#per_position_data["Confounder"][vbin] = np.zeros(self.max_position, dtype = np.int32)
+				per_position_data["Confounder"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
 			
 			#Iterate through the reads and fill the appropriate row/columns
-			for classifier, s, e, bs in zip(one_length["classifier"], one_length["start"], one_length["end"],one_length["bitscore"]):
+			for classifier, s, e, bs, targ in zip(one_length["classifier"], one_length["start"], one_length["end"], one_length["bitscore"], one_length["target"]):
+				
+				#TODO adjust the position of the read placements
 				falls_into = find_nearest(vert_bins, bs)
 				
+				lowhi = np.arange(s-1, e-1)
+				fills_bins = self.offsets[targ][lowhi] + lowhi
+				#print(targ)
+				#print(s, e)
+				#print(fills_bins.shape)
+				#fills_bins = fills_bins[np.arange(s, e)]
+
+				#print("")
+				
 				if classifier == "Target":
-					per_position_data["Target"][falls_into][s:e] += 1
+					#per_position_data["Target"][falls_into][s:e] += 1
+					per_position_data["Target"][falls_into][fills_bins] += 1
 				else:
-					per_position_data["Confounder"][falls_into][s:e] += 1
+					#per_position_data["Confounder"][falls_into][s:e] += 1
+					per_position_data["Confounder"][falls_into][fills_bins] += 1
 			
 			
 			#Need to join the disparate tabs into 2D arrs for computation.
@@ -233,14 +344,15 @@ class plot_data:
 			collected_confounder_data = np.cumsum(collected_confounder_data, axis = 0)
 			
 			#Okay, data's collected, so we select windows and calc ROC from those.
-			for window_midpoint in range(0, self.max_position):
+			#for window_midpoint in range(0, self.max_position):
+			for window_midpoint in range(0, self.multiple_align_size):
 				#Get sliding window start, end indices; truncate at edges.
 				window_start = window_midpoint-half_window
 				if window_start < 0:
 					window_start = 0
 				window_end = window_midpoint + half_window
-				if window_end > self.max_position:
-					window_end = self.max_position
+				if window_end > self.multiple_align_size:
+					window_end = self.multiple_align_size
 				
 				#Select columns matching the window from cum sums
 				current_window_tgt = collected_target_data[:, np.arange(window_start, window_end)]

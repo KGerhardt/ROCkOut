@@ -133,16 +133,8 @@ def run_download(parser, opts):
 	from modules.rocker_0_download_from_uniprot import download
 	download(parser, opts)
 	
-def run_ma(parser, opts):
-	from modules.rocker_0B_create_MA import make_ma
-	make_ma(parser, opts)
-	
-def run_add(parser, opts):
-	pass
-	
 def run_build(parser, opts):
-	from modules.rocker_read_simulation import build_project
-	
+	from modules.rocker_1_read_simulation import build_project
 	build_project(parser, opts)
 	
 def run_refine(parser, opts):

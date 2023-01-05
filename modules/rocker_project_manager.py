@@ -211,13 +211,14 @@ class project_manager:
 			if os.path.exists(relevant_directory):
 				self.alignments_neg[base] = [relevant_directory + c for c in listdir_mac_purge(relevant_directory)]		
 				
-	def parse_mult_aln(self):
+	def parse_multiple_alignment(self):
 		if os.path.exists(self.mult_aln_base):
 			files = os.listdir(self.mult_aln_base)
-			self.mult_aln_files["aln"]  = os.path.normpath(self.mult_aln_base + "/target_seq_MA.fasta")
+			self.mult_aln_files["aln_nt"]  = os.path.normpath(self.mult_aln_base + "/complete_multiple_alignment_nt.fasta")
+			self.mult_aln_files["aln_aa"]  = os.path.normpath(self.mult_aln_base + "/complete_multiple_alignment_aa.fasta")
 			self.mult_aln_files["log"]  = os.path.normpath(self.mult_aln_base + "/fasttree_log.txt")
 			self.mult_aln_files["tree"] = os.path.normpath(self.mult_aln_base + "/target_seq_tree.txt")
-			
 		else:
 			print("Multiple alignment directory not found!")
 		
+	
