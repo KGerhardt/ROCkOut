@@ -116,20 +116,18 @@ To build a ROCker model:
 
 ```bash
 python rockout_main.py download [-h] [-d OUT] [-p POS] [-n NEG] [-t THREADS] [-q QUIET]
-python rockout_main.py build [-h] [-d OUT] 
+python rockout_main.py build [-h] [-d OUT] [-t THREADS] 
+# interactive mode
+python rockout_main.py refine [-h] [-d OUT]
+# non-interactive just build plots for review
+python rockout_main.py refine-ni [-h] [-d OUT]
 ```
-
-Then run the rocker_dash.py script and open the IP address it gives in your web browser (copy and paste). Drag and drop or select the ROCkOUT_index.txt file that was created in the [OUT] directory.
-
-```bash
-python rocker_dash.py
-```
-
-Additional optional steps:
-1. Refine
-1. refine-ni
-1. align
 
 To Use a ROCker model:
 1. filter 
 1. pplace-prep
+
+```bash
+python rockout_main.py filter [-h]
+python rockout_main.py pplacer [-h]
+```
