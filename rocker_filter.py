@@ -209,9 +209,9 @@ class rocker_filterer:
 					
 				fh.close()
 			
-			#Final iter
-			if len(cur_read) > 0:
-				read_lengths[cur_read] = cur_sl
+				#Final iter
+				if len(cur_read) > 0:
+					read_lengths[cur_read] = cur_sl
 			
 			passing = open(output_pass, "w")
 			fh = open(reads_file)
