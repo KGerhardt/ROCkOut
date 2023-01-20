@@ -8,6 +8,8 @@ import plotly.graph_objs as go
 
 from .rocker_project_manager import project_manager
 
+import subprocess
+
 def import_rocker_project(project_directory):
 	manager = project_manager(project_directory)
 	manager.parse_project_directory()
@@ -27,6 +29,12 @@ class plot_data:
 		self.offsets = None
 		self.multiple_align_size = 0
 		self.valid_targets = None
+		self.targets_for_writeout = None
+		
+		self.positive_targets_file = None
+		self.positive_targets_dmnd = None
+		#Blastdb makes 6 files, so the prefix is enough
+		self.positive_targets_blast = None
 		
 		self.read_files = None
 		self.loaded_data = None
@@ -55,6 +63,12 @@ class plot_data:
 		try:
 			print("Parsing:", project_directory, "...")
 			self.project_dir = project_directory
+			
+			self.positive_targets_file = os.path.normpath(self.project_dir + "/final_outputs/database/positive_proteins_aa.fasta")
+			self.positive_targets_dmnd = os.path.normpath(self.project_dir + "/final_outputs/database//positive_proteins_diamond_db.dmnd")
+			#Blastdb makes 6 files, so the prefix is enough
+			self.positive_targets_blast = os.path.normpath(self.project_dir + "/final_outputs/database//positive_proteins_blast_database")
+			
 			self.index = os.path.normpath(project_directory + "/ROCkOUT_index.txt")
 			self.manager = project_manager(project_directory)
 			self.manager.parse_project_directory()
@@ -113,12 +127,14 @@ class plot_data:
 
 	def find_valid_targets(self):
 		self.valid_targets = []
+		self.targets_for_writeout = ""
 		self.manager.parse_coords()
 		for prot in self.manager.targets:
 			for file in self.manager.targets[prot]:
 				if '/positive/' in file:
 					fh = open(file)
 					for line in fh:
+						self.targets_for_writeout += line
 						if line.startswith(">"):
 							next_item = line.strip().split()[0][1:]
 							self.valid_targets.append(next_item)
@@ -575,17 +591,26 @@ class plot_data:
 		out_path_base = os.path.normpath(out_path_base)
 		#Save interactive plots.
 		for plot_title in self.figs:
-			print("Printing", plot_title)
-			self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"))
+			#We don't need the separate roc plots without the read overlays.
+			if not plot_title.startswith("roc_plot_"):
+				print("Printing", plot_title)
+				self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"))
 
 	def output_models(self):
 		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
+			
+		dbout = os.path.normpath(self.project_dir + "/final_outputs/database/")
+		if not os.path.exists(dbout):
+			os.mkdir(dbout)
+			
 		out_path_base += "/model"
 		out_path_base = os.path.normpath(out_path_base)
 		if not os.path.exists(out_path_base):
-			os.mkdir(out_path_base)		
+			os.mkdir(out_path_base)
+
+			
 
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity.txt")
 		sp = open(output_senspec, "w")
@@ -595,9 +620,29 @@ class plot_data:
 				print(rl, row[0], row[1], row[2], row[3], sep = "\t", file = sp)
 		sp.close()
 		
+		
+		fh = open(self.positive_targets_file, "w")
+		fh.write(self.targets_for_writeout)
+		fh.close()
+		
+		try:
+			makedb = ["diamond", "makedb", "--db", self.positive_targets_dmnd,  "--in", self.positive_targets_file]
+			print("Building Diamond database for positive targets. Log information will follow.")
+			subprocess.call(makedb)
+		except:
+			print("Couldn't make DIAMOND database of positive targets!")
+		
+		try:
+			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
+			makedb = ["makeblastdb", "-in", self.positive_targets_file, "-parse_seqids", "-dbtype", "prot", "-out", self.positive_targets_blast]
+			print(" ".join(makedb))
+			print("Building BLAST database for positive targets. Log information will follow.")
+			subprocess.call(makedb)
+		except:
+			print("Couldn't make BLAST database of positive targets!")
+		
 		output_filter = os.path.normpath(out_path_base + "/ROCkOut_Filter.txt")
 		self.models.to_csv(output_filter, sep = "\t", index = False)
-		
 		
 	def update_index(self):
 		pass

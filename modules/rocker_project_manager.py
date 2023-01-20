@@ -54,7 +54,7 @@ class project_manager:
 		self.targets_nt = {}
 		self.active_targets = None
 		
-		self.mult_aln_base = os.path.normpath(self.project_base + "/shared_files/multiple_alignment")
+		self.mult_aln_base = None
 		self.mult_aln_files = {}
 		
 	#List out proteins in a ROCker directory
@@ -198,7 +198,6 @@ class project_manager:
 		for p in protein_base_list:
 			self.active_targets[base] = self.targets[base]
 			
-		
 	#Collect aligned reads for use in visualization/model refinement and most-discriminant cutoff identification.
 	def parse_aligns(self):
 		relevant_name = "aligned_reads"
@@ -212,6 +211,7 @@ class project_manager:
 				self.alignments_neg[base] = [relevant_directory + c for c in listdir_mac_purge(relevant_directory)]		
 				
 	def parse_multiple_alignment(self):
+		self.mult_aln_base = os.path.normpath(self.project_base + "/shared_files/multiple_alignment")
 		if os.path.exists(self.mult_aln_base):
 			files = os.listdir(self.mult_aln_base)
 			self.mult_aln_files["aln_nt"]  = os.path.normpath(self.mult_aln_base + "/complete_multiple_alignment_nt.fasta")

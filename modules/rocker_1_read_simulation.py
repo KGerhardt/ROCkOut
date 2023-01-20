@@ -53,11 +53,12 @@ class read_manager:
 				coverage_depth = 20.0, 
 				snp_rate_per_base = 0.01, 
 				insertion_rate = 0.01/19.0, 
-				deletion_rate = 0.01/19.0, 
-				short = "90,100,110", 
-				standard = "180,200,220", 
-				long = "270,300,330", 
-				extra_long = "360,400,440"):
+				deletion_rate = 0.01/19.0,
+				
+				short = None,
+				standard = None, 
+				long = None, 
+				extra_long = None):
 				
 		self.threads = threads
 		self.rocker_directory = dir
@@ -79,14 +80,24 @@ class read_manager:
 			
 		self.make_db()
 		
+		'''
 		#Read sim stuff
 		self.short = self.parse_read_triplet(short, "90,100,110")
 		self.standard = self.parse_read_triplet(standard, "180,200,220")
 		self.long = self.parse_read_triplet(long, "270,300,330")
 		self.xl = self.parse_read_triplet(extra_long, "360,400,440")
+		'''
+		
+		#Try with illumina style reads
+		self.short = short
+		self.standard = standard
+		self.long = long
+		self.xl = extra_long
 		
 		self.simlens = [self.short, self.standard, self.long, self.xl]
 		
+		#Old format
+		'''
 		self.sim_arg_template = ' '.join(["randomreads.sh",
 								"coverage="+str(coverage_depth),
 								"snprate="+str(snp_rate_per_base),
@@ -96,6 +107,20 @@ class read_manager:
 								"gaussianlength=t",
 								"minlength={min}",
 								"midlength={med}",
+								"maxlength={max}",
+								"build={build_num}",
+								"ref={input_genome}",
+								"out={output_fastq}"
+							])
+		'''
+		
+		self.sim_arg_template = ' '.join(["randomreads.sh",
+								"coverage="+str(coverage_depth),
+								"snprate="+str(snp_rate_per_base),
+								"insrate="+str(round(insertion_rate, 8)),
+								"delrate="+str(round(deletion_rate, 8)),
+								"simplenames=t",
+								"minlength={min}",
 								"maxlength={max}",
 								"build={build_num}",
 								"ref={input_genome}",
@@ -201,9 +226,10 @@ class read_manager:
 	
 	#Function for building out directories as part of a structure.
 	def prep_dir(self, out_base, dir):
-		if not os.path.exists(out_base + dir):
-			os.mkdir(out_base + dir)
-		return out_base + dir	
+		dirpath = os.path.normpath(out_base + "/" + dir)
+		if not os.path.exists(dirpath):
+			os.mkdir(dirpath)
+		return dirpath
 	
 	#Function for reading a coordinates file to determine where on-target sequences begin and end.
 	def extract_from_coords(self, cf):
@@ -245,7 +271,8 @@ class read_manager:
 			aln_log = self.prep_dir(out_base, "alignment_log/")
 			
 			for triplet in self.simlens:
-				maxlen = triplet[2]
+				#maxlen = triplet[2]
+				maxlen = triplet[1]
 				#print("requested length", maxlen, "seqlen", l)
 				if maxlen < l:
 					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce)
@@ -260,6 +287,14 @@ class read_manager:
 		for result in pool.imap_unordered(run_sim, self.items_to_sim):
 			prog_bar.update()
 		pool.close()
+		
+		#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
+		if len(os.listdir("ref/genome/")) == 0:
+			shutil.rmtree("ref/genome/")
+		if len(os.listdir("ref/index/")) == 0:
+			shutil.rmtree("ref/index/")
+		if len(os.listdir("ref/")) == 0:
+			shutil.rmtree("ref/")
 		
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
@@ -276,7 +311,8 @@ class one_protein:
 		self.out_base = self.output[0] + "/"
 		self.read_name = self.output[1][:-6] + "_read_len_"
 		
-		self.this_readlen = self.read_name + str(self.simlen[1])
+		#Average of the readlens, curtailed to an int
+		self.this_readlen = self.read_name + str(int((self.simlen[0] + self.simlen[1]) / 2))
 		
 		self.fastq = self.out_base + "raw_reads/"+ self.this_readlen + "_raw.fastq"
 		self.fasta = self.out_base + "raw_reads/"+ self.this_readlen + "_raw.fasta"
@@ -298,19 +334,10 @@ class one_protein:
 		self.final_read_count = 0
 	
 	def simulate_reads(self):		
-
-		'''
-		"minlength={min}",
-		"midlength={med}",
-		"maxlength={max}",
-		"build={build_num}",
-		"ref={input_genome}",
-		"out={output_fastq}"
-		'''
 		
 		next_gen = self.template.format(min = self.simlen[0],
-										med = self.simlen[1],
-										max = self.simlen[2],
+										#med = self.simlen[1],
+										max = self.simlen[1],
 										build_num = self.simulation_index,
 										input_genome = self.inf,
 										output_fastq = self.fastq)
@@ -575,7 +602,19 @@ def build_project(parser, opts):
 		print("Threads must be an integer. Defaulting to 1 thread.")
 		threads = 1
 		
-	s, m, l, xl = opts.short, opts.med, opts.long, opts.xl
+	#s, m, l, xl = opts.short, opts.med, opts.long, opts.xl
+	
+	sl = opts.sl # short-lower
+	su = opts.su # short-upper
+	
+	ml = opts.ml # short-lower
+	mu = opts.mu # short-upper
+	
+	ll = opts.ll
+	lu = opts.lu
+	
+	xll = opts.xll
+	xlu = opts.xlu
 	
 	#parser.add_argument('--coverage',  dest = 'cov', default = "20", help = "Read coverage depth for simulated reads. Default 20") 
 	#parser.add_argument('--snprate',  dest = 'snps', default = "0.01", help = "Per base substitution likelihood. Default 0.01") 
@@ -620,7 +659,7 @@ def build_project(parser, opts):
 	standard = "180,200,220", 
 	long = "270,300,330", 
 	extra_long = "360,400,440"
-	'''
+	
 	
 	mn = read_manager(threads = threads,
 					dir = project_directory,
@@ -632,6 +671,20 @@ def build_project(parser, opts):
 					standard = m,
 					long = l,
 					extra_long = xl)
-					
-	mn.run_simulation()
+	'''	
+
+	mn = read_manager(threads = threads,
+					dir = project_directory,
+					coverage_depth = coverage,
+					snp_rate_per_base = snprate,
+					insertion_rate = insrate,
+					deletion_rate = delrate,
+					short = [sl, su],
+					standard = [ml, mu],
+					long = [ll, lu],
+					extra_long = [xll, xlu])
 	
+	mn.run_simulation()
+
+	#shutil.rmtree("ref/genome/")
+	#shutil.rmtree("ref/genome/")
