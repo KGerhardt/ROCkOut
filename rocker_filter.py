@@ -160,6 +160,9 @@ class rocker_filterer:
 				while output_pass != os.path.splitext(output_pass)[0]:
 					output_pass = os.path.splitext(output_pass)[0]
 				output_pass += "_rockout_filter_passing_reads.fasta"
+				
+				output_fail = output_pass
+				output_fail = output_fail.replace("_passing_", "_failing_")
 			
 			
 			
@@ -214,6 +217,7 @@ class rocker_filterer:
 					read_lengths[cur_read] = cur_sl
 			
 			passing = open(output_pass, "w")
+			failing = open(output_fail, "w")
 			fh = open(reads_file)
 			for line in fh:
 				segs = line.strip().split("\t")
@@ -254,9 +258,12 @@ class rocker_filterer:
 					decider = np.mean(diffs)
 					if decider > 0:
 						passing.write(line)
+					else:
+						failing.write(line)
 				
 			fh.close()
 			passing.close()
+			failing.close()
 			
 	def run_filterer(self):
 		
