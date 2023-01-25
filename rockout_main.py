@@ -19,7 +19,8 @@ def options(action):
 		parser.add_argument('--type',  dest = 'pos_neg', default = None, help =  "Group for this ID. One of 'positive', 'negative'")
 	
 	if action == "build":
-		parser.description = "ROCkOut build"
+		parser.description = "ROCkOut build. Read lengths intend to hit a mean readlength +/- 10%"
+		'''
 		parser.add_argument('--short',  dest = 'short', default = "90,100,110", 
 		help =  'Comma-sep triplet of very short read lengths, default: 90,100,110')
 		parser.add_argument('--med',  dest = 'med', default = "180,200,220", 
@@ -28,6 +29,27 @@ def options(action):
 		help =  'Comma-sep triplet of long read lengths, default: 270,300,330')
 		parser.add_argument('--xl',  dest = 'xl', default = "360,400,440", 
 		help =  'Comma-sep triplet of very long read lengths, default: 360,400,440')
+		'''
+		parser.add_argument('--short-lower',  dest = 'sl', type = int, default = 90,
+		help =  'Lower-bound on simulated read length for the short set, default: 90')
+		parser.add_argument('--short-upper',  dest = 'su', type = int, default = 110,
+		help =  'Upper-bound on simulated read length for the short set, default: 110')
+		
+		parser.add_argument('--med-lower',  dest = 'ml', type = int, default = 135,
+		help =  'Lower-bound on simulated read length for the medium set, default: 135')
+		parser.add_argument('--med-upper',  dest = 'mu', type = int, default = 165,
+		help =  'Upper-bound on simulated read length for the medium set, default: 165')
+		
+		parser.add_argument('--long-lower',  dest = 'll', type = int, default = 225,
+		help =  'Lower-bound on simulated read length for the long set, default: 225')
+		parser.add_argument('--long-upper',  dest = 'lu', type = int, default = 275,
+		help =  'Upper-bound on simulated read length for the long set, default: 275')
+		
+		parser.add_argument('--xl-lower',  dest = 'xll', type = int, default = 270,
+		help =  'Lower-bound on simulated read length for the extra long set, default: 270')
+		parser.add_argument('--xl-upper',  dest = 'xlu', type = int, default = 330,
+		help =  'Upper-bound on simulated read length for the extra long set, default: 330')
+
 		
 		parser.add_argument('--coverage',  dest = 'cov', default = 20.0, help = "Read coverage depth for simulated reads. Default 20") 
 		parser.add_argument('--snprate',  dest = 'snps', default = 0.01, help = "Per base substitution likelihood. Default 0.01") 
