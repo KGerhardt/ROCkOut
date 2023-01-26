@@ -56,6 +56,8 @@ def options(action):
 		parser.add_argument('--insertrate',  dest = 'insrate', default = None, help = "Insertion rate. Default 1/19th of snprate.") 
 		parser.add_argument('--delrate',  dest = 'delrate', default = None, help = "Deletion rate. Default 1/19th of snprate.") 
 	
+		parser.add_argument('--use_diamond', dest = 'use_diamond', action = 'store_true', help = "Use DIAMOND for read alignment instead of blastx.")
+	
 	'''
 	#This needs more thinking.
 	if action == "add-genome":
