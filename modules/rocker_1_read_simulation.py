@@ -41,7 +41,7 @@ def run_sim(read_simulator_item):
 	read_simulator_item.simulate_reads()	
 	read_simulator_item.fastq_to_fasta()
 	read_simulator_item.tag_reads()
-	read_simulator_item.align_reads()	
+	read_simulator_item.align_reads()
 	read_simulator_item.clean_up_your_mess()
 	return read_simulator_item.inf
 			
@@ -58,7 +58,9 @@ class read_manager:
 				short = None,
 				standard = None, 
 				long = None, 
-				extra_long = None):
+				extra_long = None,
+				
+				use_diamond = False):
 				
 		self.threads = threads
 		self.rocker_directory = dir
@@ -77,6 +79,8 @@ class read_manager:
 		self.shared_genomes = self.prep_dir(self.rocker_directory, "shared_files/combined_genomes/")
 		
 		self.multiple_alignment = self.prep_dir(self.rocker_directory, "shared_files/multiple_alignment/")
+			
+		self.use_diamond = use_diamond
 			
 		self.make_db()
 		
@@ -154,13 +158,14 @@ class read_manager:
 		self.make_prep()
 	
 	def make_db(self):	
-		target_db_name = self.shared_db + "combined_database.db"
+		target_db_name_dia = os.path.normpath(self.shared_db + "/combined_database_diamond.db")
+		target_db_name_bla = os.path.normpath(self.shared_db + "/combined_database_blast.db")
 		
-		target_fasta_set = self.shared_genomes + "combined_proteins_aa.fasta"
-		target_fasta_set_nt = self.shared_genomes + "combined_proteins_nt.fasta"
+		target_fasta_set = os.path.normpath(self.shared_genomes + "/combined_proteins_aa.fasta")
+		target_fasta_set_nt = os.path.normpath(self.shared_genomes + "/combined_proteins_nt.fasta")
 		
-		ma_file = self.multiple_alignment + "complete_multiple_alignment_aa.fasta"
-		ma_file_nt = self.multiple_alignment + "complete_multiple_alignment_nt.fasta"
+		ma_file = os.path.normpath(self.multiple_alignment + "/complete_multiple_alignment_aa.fasta")
+		ma_file_nt = os.path.normpath(self.multiple_alignment + "/complete_multiple_alignment_nt.fasta")
 		
 		#Join the reference proteins
 		combiner = open(target_fasta_set, "w")
@@ -195,8 +200,8 @@ class read_manager:
 		subprocess.run(muscle_ma_command)		
 		
 		#These should be nt only
-		tree_file = os.path.normpath(self.multiple_alignment + "target_seq_tree.txt")
-		tree_log_file = os.path.normpath(self.multiple_alignment + "fasttree_log.txt")
+		tree_file = os.path.normpath(self.multiple_alignment + "/target_seq_tree.txt")
+		tree_log_file = os.path.normpath(self.multiple_alignment + "/fasttree_log.txt")
 		#fasttree -log ftl.txt eee/shared_files/multiple_alignment/target_seq_MA.txt > ftt.txt
 		#muscle_tree_command = ["muscle", "-maketree", "-in", self.ma, "-out", self.tree]
 		#subprocess.run(muscle_tree_command)
@@ -204,11 +209,23 @@ class read_manager:
 		fasttree_command = ["fasttree", "-nt", "-gtr", "-log", tree_log_file, "-out", tree_file, ma_file_nt]
 		subprocess.run(fasttree_command)
 				
-		makedb = ["diamond", "makedb", "--db", target_db_name,  "--in", target_fasta_set]
+		makedb = ["diamond", "makedb", "--db", target_db_name_dia,  "--in", target_fasta_set]
 		print("Building Diamond database. Log information will follow.")
 		subprocess.call(makedb)
 		
-		self.shared_db = target_db_name
+		try:
+			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
+			makedb = ["makeblastdb", "-in", target_fasta_set, "-parse_seqids", "-dbtype", "prot", "-out", target_db_name_bla]
+			print(" ".join(makedb))
+			print("Building BLAST database for positive targets. Log information will follows.")
+			subprocess.call(makedb)
+		except:
+			print("Couldn't make BLAST database of positive targets!")
+		
+		if self.use_diamond:
+			self.shared_db = target_db_name_dia
+		else:
+			self.shared_db = target_db_name_bla
 	
 	#Function for splitting comma-sep string triplets of numbers eg 90,100,110 as numeric list
 	def parse_read_triplet(self, arg, default):
@@ -275,7 +292,7 @@ class read_manager:
 				maxlen = triplet[1]
 				#print("requested length", maxlen, "seqlen", l)
 				if maxlen < l:
-					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce)
+					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce, self.use_diamond)
 					self.items_to_sim.append(next_item)
 					
 				num += 1
@@ -298,7 +315,7 @@ class read_manager:
 		
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
-				diamond_database, coord_starts, coord_ends):
+				alignment_database, coord_starts, coord_ends, use_diamond):
 				
 		self.base = directory_base
 		
@@ -318,7 +335,14 @@ class one_protein:
 		self.fasta = self.out_base + "raw_reads/"+ self.this_readlen + "_raw.fasta"
 		self.tagged = self.out_base + "tagged_reads/"+ self.this_readlen + "_tagged.fasta"
 		self.aln_reads = self.out_base + "aligned_reads/"+ self.this_readlen + "_aligned_reads.fasta"
-		self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_DIAMOND_log.txt"
+		
+		self.use_diamond = use_diamond
+		
+		if self.use_diamond:
+			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_DIAMOND_log.txt"
+		else:
+			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_BLAST_log.txt"
+		
 		
 		self.template = read_sim_template
 		
@@ -329,8 +353,8 @@ class one_protein:
 		self.coord_starts = coord_starts
 		self.coord_ends = coord_ends
 		
-		self.dia = diamond_database
-		
+		self.db = alignment_database
+
 		self.final_read_count = 0
 	
 	def simulate_reads(self):		
@@ -460,6 +484,12 @@ class one_protein:
 		return [pos_ct, off_ct, neg_ct]
 		
 	def align_reads(self):
+		if self.use_diamond:
+			self.align_reads_diamond()
+		else:
+			self.align_reads_blast()
+		
+	def align_reads_diamond(self):
 		#DIAMOND run log
 		diamond_err = open(self.aln_err, "w")
 		'''
@@ -488,13 +518,77 @@ class one_protein:
 						"--max-target-seqs", "0", #report all discovered alignments for each read
 						"--unal", "0", #report no unaligned reads
 						"--outfmt", "6", #output as tabular blast
-						"--db", self.dia, #use the shared database as the target
+						"--db", self.db, #use the shared database as the target
 						"--query", self.tagged, #align the tagged reads
 						"--out", self.aln_reads] #send to the pre-named file
 
 		subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
 		
 		diamond_err.close()
+		
+		fh = open(self.aln_reads)
+		out = open(self.aln_reads + "_filtered.txt", "w")
+		for line in fh:
+			if line.startswith(";"):
+				print("Malformed read:", line.strip())
+				continue
+			segs = line.strip().split("\t")
+			if len(segs) < 12:
+				print("Malformed read:", line.strip())
+				continue
+				
+			#Only occurs when the two continues do not.
+			out.write(line)
+		
+		out.close()
+		fh.close()
+		
+		try:
+			os.remove(self.aln_reads)
+		except:
+			pass
+			
+		os.rename(self.aln_reads + "_filtered.txt", self.aln_reads)
+		
+	def align_reads_blast(self):
+		#DIAMOND run log
+		err = open(self.aln_err, "w")
+		'''
+		Other opts to consider?
+		--evalue (-e)            maximum e-value to report alignments (default=0.001)
+		--min-score              minimum bit score to report alignments (overrides e-value setting)
+		--id                     minimum identity% to report an alignment
+		--query-cover            minimum query cover% to report an alignment
+		--subject-cover          minimum subject cover% to report an alignment
+		--threads
+		'''
+		
+		#Original ruby command structure
+		# diamond: '%1$sdiamond %2$s -q "%3$s" -d "%4$s" -a "%5$s.daa" -p %6$d' +
+		#' -k 1 --min-score 20 --sensitive && %1$sdiamond view -a "%5$s"' +
+		#' -o "%5$s"'},
+		
+		#-k = --max-target-seqs
+		#-p = --threads
+		#-a = --daa DIAMOND alignment archive (DAA) file
+		
+		align_command = ["blastx", #align nt to AA
+						"-db", self.db,#use the shared database as the target
+						#"--min-score", "20", #min bitscore = 20
+						#"--sensitive", #try harder to align distant matches
+						#"-max_target_seqs", "1000", #report all discovered alignments for each read
+						#"--unal", "0", #report no unaligned reads
+						"-outfmt", "6", #output as tabular blast
+						"-query", self.tagged, #align the tagged reads
+						"-out", self.aln_reads] #send to the pre-named file
+						
+		#print("")
+		#print(' '.join(align_command))
+		#print("")
+		
+		subprocess.call(align_command, stdout = err, stderr = subprocess.STDOUT)
+		
+		err.close()
 		
 		fh = open(self.aln_reads)
 		out = open(self.aln_reads + "_filtered.txt", "w")
@@ -626,6 +720,8 @@ def build_project(parser, opts):
 	insrate = opts.insrate
 	delrate = opts.delrate
 	
+	do_dia = opts.use_diamond
+	
 	try:
 		if insrate is None:
 			insrate = snprate/19
@@ -682,7 +778,8 @@ def build_project(parser, opts):
 					short = [sl, su],
 					standard = [ml, mu],
 					long = [ll, lu],
-					extra_long = [xll, xlu])
+					extra_long = [xll, xlu],
+					use_diamond = do_dia)
 	
 	mn.run_simulation()
 
