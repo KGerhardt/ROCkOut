@@ -4,7 +4,7 @@
 #SBATCH -A gts-ktk3-coda20
 #SBATCH -N 1 --ntasks-per-node=10
 #SBATCH --mem=100G
-#SBATCH -t 48:00:00
+#SBATCH -t 18:00:00
 #SBATCH -e ROCkOut.err
 #SBATCH -o ROCkOut.out
 
@@ -25,16 +25,22 @@ echo `realpath .`
 echo ' '
 
 # path to rockout
-rockout="/storage/scratch1/9/rconrad6/ROCkOut/ROCkOut/rockout_main.py"
+rocker="/storage/scratch1/9/rconrad6/ROCkOut/ROCkOut/rockout_main.py"
 
 # Download the data
-python ${rockout} download -d ${odir} -p ${pos} -n ${neg} -t 10
+echo "Running ROCker Download"
+echo "Running ROCker Download" >&2
+python ${rocker} download -d ${odir} -p ${pos} -n ${neg} -t 10
 
 # Build the model
-python ${rockout} build -d ${odir} -t 10
+echo "Running ROCker Build"
+echo "Running ROCker Build" >&2
+python ${rocker} build -d ${odir} -t 10 --use_diamond
 
 # Generate the plots
-python ${rockout} refine-ni -d ${odir}
+echo "Running ROCker Refine-ni"
+echo "Running ROCker Refine-ni" >&2
+python ${rocker} refine-ni -d ${odir}
 
 ## Run Log
 ## sbatch --export odir=model,pos=pos.txt,neg=neg.txt ../../00b_sbatch/ROCkOut.sbatch
