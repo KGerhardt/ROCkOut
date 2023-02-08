@@ -356,7 +356,7 @@ class plot_data:
 			swap2 = np.flip(current_window_con, axis = 1)
 			current_window_tgt = swap2
 			current_window_con = swap1
-			print(current_window_tgt)
+			#print(current_window_tgt)
 		
 		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
 		max_by_bitscore_tgt = np.amax(current_window_tgt, axis = 1)
@@ -364,9 +364,9 @@ class plot_data:
 		
 		#The numbers of reads falling into each bitscore window, descending.
 		#If I flip these matrices rows, find youden cuts, then flip the cut indices, does that work?
-		print(current_window_tgt)
-		print(current_window_con)
-		print("")
+		#print(current_window_tgt)
+		#print(current_window_con)
+		#print("")
 		
 		#Cumulative sums means that the max is always found at the final position in the array.
 		tgt_max = max_by_bitscore_tgt[max_by_bitscore_tgt.shape[0]-1]
@@ -567,8 +567,8 @@ class plot_data:
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 				
 				
-				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', 
-				color_discrete_sequence = ["blue", "darkorange", "green"], 
+				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', hover_data = ['read_id'], 
+				color_discrete_sequence = ["blue", "darkorange", "green"],
 				category_orders={"classifier": ["Target", "Non_Target", "Negative"]}, 
 				symbol = "UniProt ID, protein name")
 				
