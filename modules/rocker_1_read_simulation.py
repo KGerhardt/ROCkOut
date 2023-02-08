@@ -60,7 +60,7 @@ class read_manager:
 				long = None, 
 				extra_long = None,
 				
-				use_diamond = False):
+				use_blast = False):
 				
 		self.threads = threads
 		self.rocker_directory = dir
@@ -80,7 +80,7 @@ class read_manager:
 		
 		self.multiple_alignment = self.prep_dir(self.rocker_directory, "shared_files/multiple_alignment/")
 			
-		self.use_diamond = use_diamond
+		self.use_blast = use_blast
 			
 		self.make_db()
 		
@@ -222,10 +222,10 @@ class read_manager:
 		except:
 			print("Couldn't make BLAST database of positive targets!")
 		
-		if self.use_diamond:
-			self.shared_db = target_db_name_dia
-		else:
+		if self.use_blast:
 			self.shared_db = target_db_name_bla
+		else:
+			self.shared_db = target_db_name_dia
 	
 	#Function for splitting comma-sep string triplets of numbers eg 90,100,110 as numeric list
 	def parse_read_triplet(self, arg, default):
@@ -292,13 +292,16 @@ class read_manager:
 				maxlen = triplet[1]
 				#print("requested length", maxlen, "seqlen", l)
 				if maxlen < l:
-					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce, self.use_diamond)
+					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce, self.use_blast)
 					self.items_to_sim.append(next_item)
 					
 				num += 1
 						
 	def run_simulation(self):
-		prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads. This will take some time.")
+		if self.use_blast:
+			prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using BLASTx. This will take a long time.")
+		else:
+			prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using DIAMOND. This will take some time.")
 	
 		pool = multiprocessing.Pool(self.threads)
 		for result in pool.imap_unordered(run_sim, self.items_to_sim):
@@ -315,7 +318,7 @@ class read_manager:
 		
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
-				alignment_database, coord_starts, coord_ends, use_diamond):
+				alignment_database, coord_starts, coord_ends, use_blast):
 				
 		self.base = directory_base
 		
@@ -336,12 +339,12 @@ class one_protein:
 		self.tagged = self.out_base + "tagged_reads/"+ self.this_readlen + "_tagged.fasta"
 		self.aln_reads = self.out_base + "aligned_reads/"+ self.this_readlen + "_aligned_reads.fasta"
 		
-		self.use_diamond = use_diamond
+		self.use_blast = use_blast
 		
-		if self.use_diamond:
-			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_DIAMOND_log.txt"
-		else:
+		if self.use_blast:
 			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_BLAST_log.txt"
+		else:
+			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_DIAMOND_log.txt"
 		
 		
 		self.template = read_sim_template
@@ -484,10 +487,10 @@ class one_protein:
 		return [pos_ct, off_ct, neg_ct]
 		
 	def align_reads(self):
-		if self.use_diamond:
-			self.align_reads_diamond()
-		else:
+		if self.use_blast:
 			self.align_reads_blast()
+		else:
+			self.align_reads_diamond()
 		
 	def align_reads_diamond(self):
 		#DIAMOND run log
@@ -720,7 +723,8 @@ def build_project(parser, opts):
 	insrate = opts.insrate
 	delrate = opts.delrate
 	
-	do_dia = opts.use_diamond
+	do_blast = opts.use_blast
+	dia_sens = opts.dia_sens
 	
 	try:
 		if insrate is None:
@@ -779,7 +783,7 @@ def build_project(parser, opts):
 					standard = [ml, mu],
 					long = [ll, lu],
 					extra_long = [xll, xlu],
-					use_diamond = do_dia)
+					use_blast = do_blast)
 	
 	mn.run_simulation()
 

@@ -49,6 +49,7 @@ class plot_data:
 		self.max_position = None
 		
 		self.senspec = None
+		self.rev_senspec = None
 		
 		#How many AA will be considered at a time when calculating ROC - this a sliding window
 		self.window_size = 20
@@ -56,6 +57,9 @@ class plot_data:
 		#Note: it's entirely possible to calculate the ROC without binning, but gains are negligible and it's slower.
 		self.resolution = 0.5
 		self.models = None
+		self.rev_models = None
+		self.aln_len_models = None
+		self.pct_id_models = None
 		
 		self.figs = {}
 	
@@ -145,6 +149,8 @@ class plot_data:
 	def load_reads(self):
 		self.loaded_data = {}
 		
+		read_best_hits = {}
+		
 		for alignments in self.manager.alignments_pos:
 			for file in self.manager.alignments_pos[alignments]:
 				#File names contain info and always have the same seps. 
@@ -159,6 +165,7 @@ class plot_data:
 				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
+					read_best_hits[avg_read_length] = {}
 					
 				fh = open(file)
 				for line in fh:
@@ -190,13 +197,32 @@ class plot_data:
 					
 					bitscore = float(segs[11])
 					
+					pct_id = float(segs[2])
+					alignment_length = int(segs[3])
+					
 					double_key = alignments + ", " + title
 					
-					data = (read_id, avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, double_key, )
+					data = (read_id, 
+							avg_read_length, 
+							alignments, 
+							title, 
+							read_classifier, 
+							alignment_target, 
+							midpt, start, end, 
+							bitscore,
+							pct_id,
+							alignment_length,
+							double_key,)
 					
 					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
 					
-					self.loaded_data[avg_read_length].append(data)
+					if read_id not in read_best_hits[avg_read_length]:
+						read_best_hits[avg_read_length][read_id] = data
+					else:
+						if bitscore > read_best_hits[avg_read_length][read_id][10]:
+							read_best_hits[avg_read_length][read_id] = data
+						
+					#self.loaded_data[avg_read_length].append(data)
 				fh.close()
 				
 		for alignments in self.manager.alignments_neg:
@@ -244,20 +270,39 @@ class plot_data:
 					#midpt = int((start + end)/2)
 					
 					bitscore = float(segs[11])
+					pct_id = float(segs[2])
+					alignment_length = int(segs[3])
 					
 					double_key = alignments + ", " + title
 					
-					data = (read_id, avg_read_length, alignments, title, read_classifier, alignment_target, 
-					midpt, start, end, bitscore, double_key, )
+					data = (read_id, 
+							avg_read_length, 
+							alignments, 
+							title, 
+							read_classifier, 
+							alignment_target, 
+							midpt, start, end, 
+							bitscore,
+							pct_id,
+							alignment_length,
+							double_key,)
 					
-					self.loaded_data[avg_read_length].append(data)
+					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
+					
+					if read_id not in read_best_hits[avg_read_length]:
+						read_best_hits[avg_read_length][read_id] = data
+					else:
+						if bitscore > read_best_hits[avg_read_length][read_id][10]:
+							read_best_hits[avg_read_length][read_id] = data
+					
+					#self.loaded_data[avg_read_length].append(data)
 				fh.close()
 
 		self.active_parents = set()
 		self.active_proteins = set()
 			
 		self.max_position = 0
-		
+		'''
 		#If reads were attempted to be added
 		to_remove = []
 		for rl in self.loaded_data:
@@ -266,16 +311,27 @@ class plot_data:
 		
 		for rl in to_remove:
 			discard = self.loaded_data.pop(rl)
-			
+		
 		discard = None
+		'''
+		for rl in read_best_hits:
+			self.loaded_data[rl] = []
+			for read_id in read_best_hits[rl]:
+				#print(read_best_hits[rl][read_id])
+				self.loaded_data[rl].append(read_best_hits[rl][read_id])
+			read_best_hits[rl] = None
+			
 		
 		for rl in self.loaded_data:
 			self.loaded_data[rl] = pd.DataFrame(self.loaded_data[rl])
-			self.loaded_data[rl].columns = ["read_id", "read_length", "parent", "protein", 
-			"classifier", "target", "midpoint", "start", "end", "bitscore", "UniProt ID, protein name"]
 			
+			self.loaded_data[rl].columns = ["read_id", "read_length", "parent", "protein", 
+											"classifier", "target", "midpoint", "start", "end", 
+											"bitscore", "pct_id", "aln_len", "UniProt ID, protein name"]
+			#print(self.loaded_data[rl])
+			#This should probably be reimplemented up above.
 			#clean the dataframes to best hit by read
-			self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
+			#self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
 			
 			#Add max as needed.
 			self.max_position = max(self.max_position, max(self.loaded_data[rl]["end"]))
@@ -293,6 +349,73 @@ class plot_data:
 		for prot in self.active_proteins:
 			self.active_prot_dict[prot] = True
 		
+	def calculate_youden(self, current_window_tgt, current_window_con, is_rev = False):
+		if is_rev:
+			#Hmm... no longer a cumsum.
+			swap1 = np.flip(current_window_tgt, axis = 1)
+			swap2 = np.flip(current_window_con, axis = 1)
+			current_window_tgt = swap2
+			current_window_con = swap1
+			print(current_window_tgt)
+		
+		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
+		max_by_bitscore_tgt = np.amax(current_window_tgt, axis = 1)
+		max_by_bitscore_con = np.amax(current_window_con, axis = 1)
+		
+		#The numbers of reads falling into each bitscore window, descending.
+		#If I flip these matrices rows, find youden cuts, then flip the cut indices, does that work?
+		print(current_window_tgt)
+		print(current_window_con)
+		print("")
+		
+		#Cumulative sums means that the max is always found at the final position in the array.
+		tgt_max = max_by_bitscore_tgt[max_by_bitscore_tgt.shape[0]-1]
+		con_max = max_by_bitscore_con[max_by_bitscore_con.shape[0]-1]
+		
+		#We care about maximizing the Youden index, per the original ROCker paper
+		#Youden = sensitivity + specificity - 1
+		
+		#Within the context of cumulative sums, at a bitscore in descending order:
+		#TP = max_by_bitscore_tgt
+		#FP = max_by_bitscore_con
+		#FN = tgt_max - max_by_bitscore_tgt
+		#TN = con_max - max_by_bitscore_con
+		
+		#these are the two from the above that we don't already have.
+		#fn = np.subtract(tgt_max, max_by_bitscore_tgt)
+		tn = np.subtract(con_max, max_by_bitscore_con)
+		
+		total_obs = tgt_max + con_max
+		accuracy = np.divide(np.add(max_by_bitscore_tgt, tn), total_obs)
+		
+		#sensitivity = TP / (TP + FN)
+		#This simplifies.
+		#TP + FN = max_by_bitscore_tgt + tgt_max - max_by_bitscore_tgt = tgt_max
+		sensitivity = np.divide(max_by_bitscore_tgt, tgt_max)
+		
+		#Specificity = TN / (FP + TN)
+		#This simplifies
+		#FP + TN = max_by_bitscore_con + con_max - max_by_bitscore_con = con_max
+		specificity = np.divide(tn, con_max)
+		
+		Youden_by_bs = sensitivity + specificity - 1
+		
+
+		#Argmax returns the first occurrence is there is a tie
+		#this equivalent to the highest bitscore among ties, usually seen where Youden = 1
+		
+		if is_rev:
+			cutoff = np.argmax(Youden_by_bs[::-1])
+		else:
+			cutoff = np.argmax(Youden_by_bs)
+			
+		if np.isnan(Youden_by_bs[cutoff]):
+			#Natural return is 0 when there's no conf, but we actually want to choose
+			#the min bitscore in this case, which is the last index.
+			cutoff = max_by_bitscore_tgt.shape[0]-1
+			
+		return cutoff, accuracy, sensitivity, specificity
+		
 	def calculate_roc_curves(self):		
 		#Ceiling of the number of full windows.
 		half_window = int(self.window_size/2)
@@ -303,20 +426,34 @@ class plot_data:
 			return array[idx]
 			
 		self.models = []
-		self.senspec = {}
+		self.rev_models = []
+		self.aln_len_models = []
+		self.pct_id_models = []
 		
+		self.senspec = {}
+		self.rev_senspec = {}
+
 		#Separate the data into groups of mean read lengths.
 		#read_lengths = list(set(current_data["read_length"]))
+		
+		#From meeting:
+		#We're going to repeat this model building for alignment length and percent identity 
+		#and use the three models as an ensemble for the filter step.
+		
 		for rl in self.loaded_data:
 			#Since each model is calculated at one read length and we interpolate read lengths between them,
 			#We select the data associated with each readlength and get the model for it.
 			one_length = self.loaded_data[rl].copy()
+			#print(one_length)
 			
 			#Select out active prots
 			one_length = one_length.loc[one_length['protein'].isin(self.active_proteins)]
 			
 			min_bitscore = min(one_length["bitscore"])
 			max_bitscore = max(one_length["bitscore"])
+			
+			#min_aln_len = min(one_length[""])
+			#This could be repeated for aln length, pct ID for more models...
 			
 			#Determine the bin boundaries
 			vert_bins = np.arange(min_bitscore, max_bitscore, self.resolution)
@@ -388,64 +525,35 @@ class plot_data:
 				current_window_tgt = collected_target_data[:, np.arange(window_start, window_end)]
 				current_window_con = collected_confounder_data[:, np.arange(window_start, window_end)]
 				
-				#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
-				max_by_bitscore_tgt = np.amax(current_window_tgt, axis = 1)
-				max_by_bitscore_con = np.amax(current_window_con, axis = 1)
+				#In-group cutoffs
+				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
 				
-				#Cumulative sums means that the max is always found at the final position in the array.
-				tgt_max = max_by_bitscore_tgt[max_by_bitscore_tgt.shape[0]-1]
-				con_max = max_by_bitscore_con[max_by_bitscore_con.shape[0]-1]
-
-				#We care about maximizing the Youden index, per the original ROCker paper
-				#Youden = sensitivity + specificity - 1
-				
-				#Within the context of cumulative sums, at a bitscore in descending order:
-				#TP = max_by_bitscore_tgt
-				#FP = max_by_bitscore_con
-				#FN = tgt_max - max_by_bitscore_tgt
-				#TN = con_max - max_by_bitscore_con
-				
-				#these are the two from the above that we don't already have.
-				#fn = np.subtract(tgt_max, max_by_bitscore_tgt)
-				tn = np.subtract(con_max, max_by_bitscore_con)
-				
-				total_obs = tgt_max + con_max
-				accuracy = np.divide(np.add(max_by_bitscore_tgt, tn), total_obs)
-				
-				#sensitivity = TP / (TP + FN)
-				#This simplifies.
-				#TP + FN = max_by_bitscore_tgt + tgt_max - max_by_bitscore_tgt = tgt_max
-				sensitivity = np.divide(max_by_bitscore_tgt, tgt_max)
-				
-				#Specificity = TN / (FP + TN)
-				#This simplifies
-				#FP + TN = max_by_bitscore_con + con_max - max_by_bitscore_con = con_max
-				specificity = np.divide(tn, con_max)
-				
-				Youden_by_bs = sensitivity + specificity - 1
-				
-				#Argmax returns the first occurrence is there is a tie
-				#this equivalent to the highest bitscore among ties, usually seen where Youden = 1
-				cutoff = np.argmax(Youden_by_bs)
-				if np.isnan(Youden_by_bs[cutoff]):
-					#Natural return is 0 when there's no conf, but we actually want to choose
-					#the min bitscore in this case, which is the last index.
-					cutoff = max_by_bitscore_tgt.shape[0]-1
-				
+				#Here, we're gonna assume that the out-group is "target" and calculate an 
+				#out-group threshold as well as a lower bound.
+				rev_cutoff, rev_accuracy, rev_sensitivity, rev_specificity = self.calculate_youden(current_window_tgt, current_window_con, is_rev = True)
 				
 				if rl not in self.senspec:
 					self.senspec[rl] = []
+					self.rev_senspec[rl] = []
+					
 				self.senspec[rl].append((window_midpoint, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
+				self.rev_senspec[rl].append((window_midpoint, rev_accuracy[rev_cutoff], rev_sensitivity[rev_cutoff], rev_specificity[rev_cutoff],))
 
 				cutoff_bitscore = desc_bitscores[cutoff]
-				#print(rl, window_start, window_end, cutoff, Youden_by_bs[cutoff], desc_bitscores[cutoff])
+				rev_cutoff_bitscore = desc_bitscores[rev_cutoff]
 				
 				data = (rl, window_midpoint, cutoff_bitscore,)
+				rev_data = (rl, window_midpoint, rev_cutoff_bitscore,)
 				
 				self.models.append(data)
+				self.rev_models.append(rev_data)
 				
 		self.models = pd.DataFrame(self.models)
 		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
+		
+		self.rev_models = pd.DataFrame(self.rev_models)
+		self.rev_models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
+		
 		
 	def craft_plot(self):
 		if self.loaded_data is not None:
@@ -530,9 +638,10 @@ class plot_data:
 		if self.models is None:
 			if self.loaded_data is not None:
 				self.calculate_roc_curves()
-				
+		
 		if self.models is not None:
 			current_data = self.models.copy()
+			rev_current_data = self.rev_models.copy()
 			fig = px.line_3d(current_data, x="window_midpt", y="bitscore_cutoff", z="read_length", line_group="read_length")
 			fig.update_layout(scene = dict(
 						xaxis_title='Position in Protein',
@@ -559,8 +668,23 @@ class plot_data:
 				#fig.write_html(out_path_base+"/"+fig_title+".html")
 				
 				self.figs[fig_title] = fig
+				
+				rev_sub = rev_current_data[rev_current_data['read_length'] == rl]
+				rev_fig = px.line(rev_sub, x="window_midpt", y= "bitscore_cutoff", color_discrete_sequence = ["red"])
+				rev_fig.update_layout(scene = dict(
+						xaxis_title='Position in Protein',
+						yaxis_title='Bitscore'))
+						
+				rev_fig_title = "roc_plot_"+str(rl)
+				
+				#out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")
+				#fig.write_html(out_path_base+"/"+fig_title+".html")
+				
+				self.figs[rev_fig_title] = rev_fig
+				
 				corresp = "scatter_2d_read_len_"+str(rl)
 				if corresp in self.figs:
+					#self.figs[corresp] = go.Figure(data=self.figs[corresp].data + fig.data + rev_fig.data)
 					self.figs[corresp] = go.Figure(data=self.figs[corresp].data + fig.data)
 	
 	def craft_acc_sens_spec(self):
@@ -597,6 +721,7 @@ class plot_data:
 				self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"))
 
 	def output_models(self):
+		reads_path = out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")
 		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
@@ -643,6 +768,11 @@ class plot_data:
 		
 		output_filter = os.path.normpath(out_path_base + "/ROCkOut_Filter.txt")
 		self.models.to_csv(output_filter, sep = "\t", index = False)
+		
+		for rl in self.loaded_data:
+			this_output = os.path.normpath(reads_path + "/read_len_" + str(rl)+"_final_reads.tsv")
+			self.loaded_data[rl].to_csv(this_output, sep = "\t")
+		
 		
 	def update_index(self):
 		pass
