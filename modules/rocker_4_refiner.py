@@ -567,7 +567,7 @@ class plot_data:
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 				
 				
-				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', hover_data = ['read_id'], 
+				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', hover_data = ['read_id', 'target'], 
 				color_discrete_sequence = ["blue", "darkorange", "green"],
 				category_orders={"classifier": ["Target", "Non_Target", "Negative"]}, 
 				symbol = "UniProt ID, protein name")
