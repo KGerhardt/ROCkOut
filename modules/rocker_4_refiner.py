@@ -208,7 +208,9 @@ class plot_data:
 							title, 
 							read_classifier, 
 							alignment_target, 
-							midpt, start, end, 
+							midpt, 
+							start, 
+							end, 
 							bitscore,
 							pct_id,
 							alignment_length,
@@ -219,7 +221,7 @@ class plot_data:
 					if read_id not in read_best_hits[avg_read_length]:
 						read_best_hits[avg_read_length][read_id] = data
 					else:
-						if bitscore > read_best_hits[avg_read_length][read_id][10]:
+						if bitscore > read_best_hits[avg_read_length][read_id][9]:
 							read_best_hits[avg_read_length][read_id] = data
 						
 					#self.loaded_data[avg_read_length].append(data)
@@ -281,7 +283,9 @@ class plot_data:
 							title, 
 							read_classifier, 
 							alignment_target, 
-							midpt, start, end, 
+							midpt, 
+							start, 
+							end, 
 							bitscore,
 							pct_id,
 							alignment_length,
@@ -292,7 +296,7 @@ class plot_data:
 					if read_id not in read_best_hits[avg_read_length]:
 						read_best_hits[avg_read_length][read_id] = data
 					else:
-						if bitscore > read_best_hits[avg_read_length][read_id][10]:
+						if bitscore > read_best_hits[avg_read_length][read_id][9]:
 							read_best_hits[avg_read_length][read_id] = data
 					
 					#self.loaded_data[avg_read_length].append(data)
