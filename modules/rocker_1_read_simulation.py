@@ -252,6 +252,7 @@ class read_manager:
 	def extract_from_coords(self, cf):
 		coord_starts = []
 		coord_ends = []
+
 		fh = open(cf)
 		for line in fh:
 			segs = line.strip().split()
@@ -263,8 +264,8 @@ class read_manager:
 		fh.close()
 			
 		#Switch to numpy.
-		coord_starts = np.array(coord_starts)
-		coord_ends = np.array(coord_ends)
+		#coord_starts = np.array(coord_starts)
+		#coord_ends = np.array(coord_ends)
 		
 		return coord_starts, coord_ends
 	
@@ -276,6 +277,7 @@ class read_manager:
 			base = prot.split("/genomes/")
 			
 			cs, ce = self.extract_from_coords(coord)
+
 			
 			output = prot.split("/genomes/")
 			out_base = output[0] + "/"
@@ -454,10 +456,19 @@ class one_protein:
 				#No interference with ROCker's split scheme.
 				genome_id = genome_id.replace(';', '_')
 				
+				
+				'''
+				There is an error in the tagging of appropriate coordinates here
+				
+				Reads that overlap the stat or end of a gene window are not being included because they are not entirely within the window.
+				
+				What we need is to allow reads to have either end within a window and that's OK.
+				'''
+					
 				#We use the end to figure out if there's an overlap with the gene start to the gene start.
-				start_window = np.searchsorted(self.coord_starts, mx, side = 'right')
+				#start_window = np.searchsorted(self.coord_starts, mx, side = 'right')
 				#We use the start against the ends to figure out if there's an overlap with the gene end.
-				end_window = np.searchsorted(self.coord_ends, mn, side = 'left')
+				#end_window = np.searchsorted(self.coord_ends, mn, side = 'left')
 				
 				tagged_name = ';'.join([id, str(mn), str(mx), comp, genome_id])
 				
@@ -468,7 +479,17 @@ class one_protein:
 					malformed = True
 					continue
 
-				if (start_window - 1) == end_window:
+				is_on_target = False
+				for start, end in zip(self.coord_starts, self.coord_ends):
+					if is_on_target:
+						continue
+					#if the read ends before the gene, mx will be < start
+					#if the gene ends before the read, mn will be > end
+					if mx > start and mn < end:
+						is_on_target = True
+					
+				#if (start_window - 1) == end_window:
+				if is_on_target:
 					#The read falls inside a target gene window and we should tag it as on-target
 					print(">" + tagged_name + ";Target", file = out)
 					pos_ct += 1
