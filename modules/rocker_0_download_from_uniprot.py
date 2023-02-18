@@ -69,7 +69,6 @@ class download_manager:
 
 		gff_search_name = ""
 		
-		
 		#We'll have to get the proteins listed under this annotation; this stores those prots
 		my_translations = {}
 		#Look into these
@@ -151,6 +150,10 @@ class download_manager:
 		if not os.path.exists(coords_name):
 			os.mkdir(coords_name)
 			
+		proteins_name = os.path.normpath(self.output + self.prot + "/proteome") + "/"
+		if not os.path.exists(proteins_name):
+			os.mkdir(proteins_name)
+			
 		genomes_name = os.path.normpath(self.output + self.prot + "/genomes") + "/"
 		if not os.path.exists(genomes_name):
 			os.mkdir(genomes_name)
@@ -171,53 +174,54 @@ class download_manager:
 		#Process identified proteins by downloading the relevant GFF and parsing them for useful results.
 		for p in additionals:
 			one_file = self.download_gffs(p, gff_search_name)
-			#print(one_file)
 			formatted_results = []
 			successful_tags = []
 			gen_tags = {}
 			
-			#Record coordinates for use later.
-			fh = open(coords_name + p +"_coords.txt", "w")
-			for item_set in one_file:
-				#print(item_set[0:4])
-				if item_set[0] in additionals or item_set[1] in my_translations:
-					#print(item_set)
-					tag = item_set[1]
-					wts[tag] = {}
-					
-					if p not in gen_tags:
-						gen_tags[p] = [tag]
-					else:
-						gen_tags[p].append(tag)
-					
-					
-					this_trans = item_set[len(item_set)-1]
-					
-					#wts[tag]["seq_prot"] = this_trans
-					
-					to_add = list(item_set[:-1])
-					to_add.append(p)
-					to_add.append(gff_search_name)
-					
-					#print(to_add)
-					wts[tag]['info'] = to_add
-					wts[tag]['seq'] = this_trans
-					#wt_info.append(to_add)
-					#tags.append(to_add[5])
-					
-					'''
-					if len(this_trans) > len(winning_translation):
-						winning_translation = this_trans
-						winning_translation_info = list(item_set[:-1])
-						winning_translation_info.append(p)
-						winning_translation_info.append(gff_search_name)
-					'''
-					
-					no_trans = item_set[:-1]
-					print(*no_trans, file = fh)
-					successful_tags.append(p)
-					
-			fh.close()
+			if len(one_file) > 0: #Don't make a coords file for an empty gff
+				#Record coordinates for use later.
+				fh = open(coords_name + p +"_coords.txt", "w")
+				for item_set in one_file:
+					#print(item_set[0:4])
+					#item_set[2] is trans ID
+					if item_set[0] in additionals or item_set[2] in my_translations:
+						#print(item_set)
+						tag = item_set[2]
+						wts[tag] = {}
+						
+						if p not in gen_tags:
+							gen_tags[p] = [tag]
+						else:
+							gen_tags[p].append(tag)
+						
+						
+						this_trans = item_set[len(item_set)-1]
+						
+						#wts[tag]["seq_prot"] = this_trans
+						
+						to_add = list(item_set[:-1]) #all but the actual sequence
+						to_add.append(p)
+						to_add.append(gff_search_name)
+						
+						#print(to_add)
+						wts[tag]['info'] = to_add
+						wts[tag]['seq'] = this_trans
+						#wt_info.append(to_add)
+						#tags.append(to_add[5])
+						
+						'''
+						if len(this_trans) > len(winning_translation):
+							winning_translation = this_trans
+							winning_translation_info = list(item_set[:-1])
+							winning_translation_info.append(p)
+							winning_translation_info.append(gff_search_name)
+						'''
+						
+						no_trans = item_set[:-1]
+						print(*no_trans, file = fh)
+						successful_tags.append(p)
+						
+				fh.close()
 			
 			successful_tags = list(set(successful_tags))
 			
@@ -245,14 +249,15 @@ class download_manager:
 						tt = tag
 						if tag in wts:
 							parent_name = wts[tag]['info'][0]
-							prot_name = wts[tag]['info'][1]
+							gene_name = wts[tag]['info'][1]
+							prot_name = wts[tag]['info'][2]
 							#python will zero index, but the genome indices are 1 indexed
-							start = int(wts[tag]['info'][2])-1
+							start = int(wts[tag]['info'][3])-1
 							#python selection will exclude the final index; leaving this as-is works
-							end = int(wts[tag]['info'][3])
-							strand = wts[tag]['info'][4]
+							end = int(wts[tag]['info'][4])
+							strand = wts[tag]['info'][5]
 							
-							infl = [parent_name, prot_name, start, end, strand]
+							#infl = [parent_name, gene_name, prot_name, start, end, strand]
 							
 							nt_seq = to_combine[start:end]
 							if strand == "-":
@@ -274,6 +279,8 @@ class download_manager:
 				os.mkdir(target_dir_name)
 				
 			aa_output_name = target_dir_name + self.prot + "_target_protein_AA.fasta"
+			
+			#This isn't filling correctly - It's probably a tag issue
 			nt_output_name = target_dir_name + self.prot + "_target_protein_nt.fasta"
 
 			aaout = open(aa_output_name, "w")
@@ -316,13 +323,41 @@ class download_manager:
 		
 		output_gff = self.output + self.prot + "/gffs/" + prot + ".gff3"
 		
-		fh = open(output_gff, "w")
-		fh.write(gff_data)
-		fh.close()
-		
-		gff_data = gff_data.split("\n")
-		
-		coordinate_info = self.gff_to_coords(gff_data, target)
+		coordinate_info = []
+		if not gff_data.startswith("ERROR"):
+			fh = open(output_gff, "w")
+			fh.write(gff_data)
+			fh.close()
+			
+			gff_data = gff_data.split("\n")
+			
+			output_protein = self.output + self.prot + "/proteome/" + prot + ".proteome.fasta"
+			po = open(output_protein, "w")
+			for line in gff_data:
+				segs = line.strip().split("\t")
+				if len(segs) > 7:
+					annot = segs[8]
+					if "translation=" in annot: #This is a line containing a protein record
+						#parent = segs[0]
+						start, end = segs[3], segs[4]
+						strand = segs[6]
+						annot = annot.split(";")
+						id = annot[0][3:]
+						trans_position = len(annot)-1
+						
+						trans = annot[trans_position][12:]
+						reformatted = [trans[i:i+60] for i in range(0, len(trans), 60)]
+						reformatted = "\n".join(reformatted)
+						
+						annot = annot[1:(trans_position-1)]
+						annot = ";".join(annot)
+						
+						to_write = ">"+id+";"+start+";"+end+";"+strand + " " + annot +  "\n" + reformatted
+						print(to_write, file = po)
+					
+			po.close()
+					
+			coordinate_info = self.gff_to_coords(gff_data, target)
 		
 		return coordinate_info
 		
@@ -351,12 +386,13 @@ class download_manager:
 			#Set these to none; they'll be filled or the none value will be used as a check.
 			prot_id, tran_id = None, None
 			trans = None
+			gene_id = None
 			#The annotation chunk is a semicolon separated line of unknown length.	
 			annotation = segs[8].split(";")
 			for item in annotation:
-				if self.is_pos:
-					pass
-					#print(item)
+				
+				if item.startswith("ID="):
+					gene_id = item[3:]
 			
 				#The labels seem very backwards to me, but they match the original code.
 				if item.startswith("protein_id="):
@@ -384,8 +420,10 @@ class download_manager:
 				prot_id = "None"
 			if tran_id is None:
 				tran_id = "None"
+			if gene_id is None:
+				gene_id = "None"
 			
-			results.append((prot_id, tran_id, from_coord, to_coord, strand, trans))
+			results.append((prot_id, gene_id, tran_id, from_coord, to_coord, strand, trans,))
 				
 		return results
 		
@@ -402,6 +440,11 @@ class uniprot_downloader:
 		self.sets_from_files()
 		
 		self.worklist = []
+		
+		
+		self.target_protein_files = None
+		self.gffs = None
+		self.coordinate_files = None
 		
 		try:
 			threads = int(threads)
@@ -464,6 +507,10 @@ class uniprot_downloader:
 	def execute_downloads(self):
 		pool = multiprocessing.Pool(self.threads)
 		pool.imap_unordered(do_download, self.worklist)
+		#for result in pool.imap_unordered(do_download, self.worklist):
+			#target_proteins
+			#gffs
+			
 		pool.close()
 		pool.join()
 	

@@ -44,6 +44,10 @@ def run_sim(read_simulator_item):
 	read_simulator_item.align_reads()
 	read_simulator_item.clean_up_your_mess()
 	return read_simulator_item.inf
+	
+def run_tf(target_finder_item):
+	target_finder_item.run()
+	return target_finder_item.probable_hits
 			
 class read_manager:
 	def __init__(self, 
@@ -68,9 +72,16 @@ class read_manager:
 		
 		self.project.parse_project_directory()
 		self.project.parse_coords()
+		
+		self.project.parse_proteomes()
+		self.proteome_jobs = []
+		
 		self.project.parse_genomes()
 		self.project.check_genome_lengths()
 		self.project.parse_targets()
+		
+		self.reference_lengths = {}
+		self.reference_prots = []
 		
 		#Database stuff
 		#raw = self.prep_dir(out_base, "raw_reads/")
@@ -82,6 +93,8 @@ class read_manager:
 			
 		self.use_blast = use_blast
 			
+		self.dia_db = os.path.normpath(self.shared_db + "/combined_database_diamond.db")
+		self.bla_db = os.path.normpath(self.shared_db + "/combined_database_blast.db")
 		self.make_db()
 		
 		'''
@@ -130,36 +143,67 @@ class read_manager:
 								"ref={input_genome}",
 								"out={output_fastq}"
 							])
+							
 	
 		self.genomes_to_sim = []
 		self.genlens = []
 		self.coords_files = []
-	
-		#print(self.project.genomes_pos)
-		#print(self.project.gen_lengths_pos)
-		#print(self.project.gen_lengths_neg)
-		#print(self.project.coords_pos)
+		self.proteome_files = []
+		
+		self.proteome_args = []
+		
+		self.coord_starts = []
+		self.coord_ends = []
 	
 		for item in self.project.genomes_pos:
-			for gen, l in zip(self.project.genomes_pos[item], self.project.gen_lengths_pos[item]):
+			for gen, l, coords, proteome in zip(self.project.genomes_pos[item], self.project.gen_lengths_pos[item], self.project.coords_pos[item], self.project.proteomes_pos[item]):
 				self.genomes_to_sim.append(gen)
 				self.genlens.append(l)
-			for gen in self.project.coords_pos[item]:
-				self.coords_files.append(gen)
+				cs, ce = self.extract_from_coords(coords)
+				self.coord_starts.append(cs)
+				self.coord_ends.append(ce)
 				
+				
+				bn = os.path.basename(proteome)
+				while bn != os.path.splitext(bn)[0]:
+					bn = os.path.splitext(bn)[0]
+				output_aln = "/".join([self.project.project_base, "positive", item, "proteome_vs_references", bn + ".protein_alignment.blast.txt"])
+				output_coords = "/".join([self.project.project_base, "positive", item, "probable_target_coords", bn + ".coords.txt"])
+				
+				next_pa = (item, proteome, bn, output_aln, output_coords)	
+				self.proteome_args.append(next_pa)
+				
+				#print(gen, l, coords, proteome)
+
+				#self.coords_files.append(gen)
+		
 		for item in self.project.genomes_neg:
-			for gen, l in zip(self.project.genomes_neg[item], self.project.gen_lengths_neg[item]):
+			for gen, l, coords, proteome in zip(self.project.genomes_neg[item], self.project.gen_lengths_neg[item], self.project.coords_neg[item], self.project.proteomes_neg[item]):
 				self.genomes_to_sim.append(gen)
 				self.genlens.append(l)
-			for gen in self.project.coords_neg[item]:
-				self.coords_files.append(gen)		
-
-		self.items_to_sim = None
-		self.make_prep()
-	
+				cs, ce = self.extract_from_coords(coords)
+				self.coord_starts.append(cs)
+				self.coord_ends.append(ce)
+				
+				#Should consider getting only own proteins to exclude from probable targets.
+				bn = os.path.basename(proteome)
+				while bn != os.path.splitext(bn)[0]:
+					bn = os.path.splitext(bn)[0]
+				output_aln = "/".join([self.project.project_base, "negative", item, "proteome_vs_references", bn + ".protein_alignment.blast.txt"])
+				output_coords = "/".join([self.project.project_base, "negative", item, "probable_target_coords", bn + ".coords.txt"])
+				
+				next_pa = (item, proteome, bn, output_aln, output_coords)	
+				self.proteome_args.append(next_pa)
+				
+		self.per_ID_coords = []
+		#self.find_probable_targets()
+				
+		self.items_to_sim = []
+		#self.make_prep()
+		
 	def make_db(self):	
-		target_db_name_dia = os.path.normpath(self.shared_db + "/combined_database_diamond.db")
-		target_db_name_bla = os.path.normpath(self.shared_db + "/combined_database_blast.db")
+		target_db_name_dia = self.dia_db
+		target_db_name_bla = self.bla_db
 		
 		target_fasta_set = os.path.normpath(self.shared_genomes + "/combined_proteins_aa.fasta")
 		target_fasta_set_nt = os.path.normpath(self.shared_genomes + "/combined_proteins_nt.fasta")
@@ -168,14 +212,32 @@ class read_manager:
 		ma_file_nt = os.path.normpath(self.multiple_alignment + "/complete_multiple_alignment_nt.fasta")
 		
 		#Join the reference proteins
+		cur_seqlen = 0
+		cur_id = ""
+		
 		combiner = open(target_fasta_set, "w")
 		#We want all of them. Align now, filter to pos/neg later.
 		for base in self.project.targets:
 			for genome in self.project.targets[base]:
 				in_fasta = open(genome)
 				for line in in_fasta:
+					if line.startswith(">"):
+						if cur_seqlen > 0:
+							prot = cur_id.split("__")[3]
+							self.reference_prots.append(prot)
+							self.reference_lengths[cur_id] = cur_seqlen
+						cur_id = line.strip().split()[0][1:]
+						cur_seqlen = 0
+					else:
+						cur_seqlen += len(line.strip())
+						
 					combiner.write(line)
 				in_fasta.close()
+				
+				if cur_seqlen > 0:
+					prot = cur_id.split("__")[3]
+					self.reference_prots.append(prot)
+					self.reference_lengths[cur_id] = cur_seqlen
 		
 		combiner.close()
 		
@@ -193,11 +255,9 @@ class read_manager:
 		combiner.close()
 		
 		#craft a MA
-		muscle_ma_command = ["muscle", "-in", target_fasta_set, "-out", ma_file]
-		subprocess.run(muscle_ma_command)
+		muscle_ma_command_aa = ["muscle", "-in", target_fasta_set, "-out", ma_file]
 		
-		muscle_ma_command = ["muscle", "-in", target_fasta_set_nt, "-out", ma_file_nt]
-		subprocess.run(muscle_ma_command)		
+		muscle_ma_command_nt = ["muscle", "-in", target_fasta_set_nt, "-out", ma_file_nt]	
 		
 		#These should be nt only
 		tree_file = os.path.normpath(self.multiple_alignment + "/target_seq_tree.txt")
@@ -207,6 +267,11 @@ class read_manager:
 		#subprocess.run(muscle_tree_command)
 		
 		fasttree_command = ["fasttree", "-nt", "-gtr", "-log", tree_log_file, "-out", tree_file, ma_file_nt]
+		
+		#Subprocess calls for MA+tree
+		
+		subprocess.run(muscle_ma_command_aa)
+		subprocess.run(muscle_ma_command_nt)	
 		subprocess.run(fasttree_command)
 				
 		makedb = ["diamond", "makedb", "--db", target_db_name_dia,  "--in", target_fasta_set]
@@ -216,7 +281,7 @@ class read_manager:
 		try:
 			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
 			makedb = ["makeblastdb", "-in", target_fasta_set, "-parse_seqids", "-dbtype", "prot", "-out", target_db_name_bla]
-			print(" ".join(makedb))
+			#print(" ".join(makedb))
 			print("Building BLAST database for positive targets. Log information will follows.")
 			subprocess.call(makedb)
 		except:
@@ -256,10 +321,12 @@ class read_manager:
 		fh = open(cf)
 		for line in fh:
 			segs = line.strip().split()
-			parent, prot_id, start, end, strand = segs[0], segs[1], int(segs[2]), int(segs[3]), segs[4]
-			#my_coords[prot_id] = (start, end, strand)
+			parent, prot_id, tran_id, start, end, strand = segs[0], segs[1], segs[2], int(segs[3]), int(segs[4]), segs[5],
 			coord_starts.append(start)
 			coord_ends.append(end)
+			
+			#We probably need this to happen on a per-file basis with a third return
+			self.reference_prots.append(prot_id)
 		
 		fh.close()
 			
@@ -268,16 +335,91 @@ class read_manager:
 		#coord_ends = np.array(coord_ends)
 		
 		return coord_starts, coord_ends
-	
-	def make_prep(self):
-		num = 1
-		self.items_to_sim = []
 		
-		for prot, l, coord in zip(self.genomes_to_sim, self.genlens, self.coords_files):
-			base = prot.split("/genomes/")
+	def find_probable_targets(self):
+		self.reference_prots = set(self.reference_prots) #Render this searchable.
+	
+		for next_pa in self.proteome_args:
+			item, proteome, bn, output_aln, output_coords = next_pa[0], next_pa[1], next_pa[2], next_pa[3], next_pa[4]
+			#next_pa = (item, proteome, bn, output_aln, output_coords)
+			next_set = probable_target_finder(item, proteome, self.dia_db, output_aln, output_coords, self.reference_lengths, self.reference_prots,)
+			self.proteome_jobs.append(next_set)
+	
+		'''
+		for item in self.project.genomes_pos:
+			for proteome in self.project.proteomes_pos[item]:
+				#bn = os.path.basename(proteome)
+				#while bn != os.path.splitext(bn)[0]:
+				#	bn = os.path.splitext(bn)[0]
+				#output_aln = "/".join([self.project.project_base, "positive", item, "proteome_vs_references", bn + ".protein_alignment.blast.txt"])
+				#output_coords = "/".join([self.project.project_base, "positive", item, "probable_target_coords", bn + ".coords.txt"])
+				
+				next_set = probable_target_finder(item, proteome, self.dia_db, output_aln, output_coords, self.reference_lengths, self.reference_prots,)
+				
+				self.proteome_jobs.append(next_set)
+				#Format is (query, target, output_aln, output_coords, use_blast)
+		for item in self.project.genomes_neg:
+			for proteome in self.project.proteomes_neg[item]:
+				bn = os.path.basename(proteome)
+				while bn != os.path.splitext(bn)[0]:
+					bn = os.path.splitext(bn)[0]
+				output_aln = "/".join([self.project.project_base, "negative", item, "proteome_vs_references", bn + ".protein_alignment.blast.txt"])
+				output_coords = "/".join([self.project.project_base, "negative", item, "probable_target_coords", bn + ".coords.txt"])
+				next_set = probable_target_finder(item, proteome, self.dia_db, output_aln, output_coords, self.reference_lengths, self.reference_prots,)
+				self.proteome_jobs.append(next_set)
+		'''
+		
+		for directory in self.project.positive:
+			dir1 = "/".join([self.project.project_base, "positive", directory, "probable_target_coords"])
+			dir1 = os.path.normpath(dir1)
+			dir2 = "/".join([self.project.project_base, "positive", directory, "proteome_vs_references"])
+			dir2 = os.path.normpath(dir2)
+			if not os.path.exists(dir1):
+				os.mkdir(dir1)
+			if not os.path.exists(dir2):
+				os.mkdir(dir2)
 			
-			cs, ce = self.extract_from_coords(coord)
-
+		for directory in self.project.negative:
+			dir1 = "/".join([self.project.project_base, "negative", directory, "probable_target_coords"])
+			dir1 = os.path.normpath(dir1)
+			dir2 = "/".join([self.project.project_base, "negative", directory, "proteome_vs_references"])
+			dir2 = os.path.normpath(dir2)
+			if not os.path.exists(dir1):
+				os.mkdir(dir1)
+			if not os.path.exists(dir2):
+				os.mkdir(dir2)
+		
+	def run_target_finder(self):
+		prog_bar = progress_tracker(total = len(self.proteome_jobs), message = "Finding unlabeled probable targets.")
+		#print("")
+		#print("Finding unlabeled probable targets. This will take a bit.")
+		#print("")
+		pool = multiprocessing.Pool(self.threads)
+		for result in pool.imap(run_tf, self.proteome_jobs):
+			if result is not None:
+				self.per_ID_coords.append(result)
+			prog_bar.update() #Cannot update a progress bar using map?
+		pool.close()
+		
+		
+	def make_prep(self):
+		#print(self.genomes_to_sim)
+		#print(self.genlens)
+		#print(self.coords_files)
+		#print(self.per_ID_coords)
+	
+		num = 1
+		
+		for prot, l, cs, ce, probable in zip(self.genomes_to_sim, self.genlens, self.coord_starts, self.coord_ends, self.per_ID_coords):
+			base = prot.split("/genomes/")	
+			
+			#cs, ce = self.extract_from_coords(coord)
+			
+			ps, pe = [], []
+			for row in self.per_ID_coords:
+				for gid in row:
+					ps.append(row[gid][0])
+					pe.append(row[gid][1])
 			
 			output = prot.split("/genomes/")
 			out_base = output[0] + "/"
@@ -288,17 +430,20 @@ class read_manager:
 			aln = self.prep_dir(out_base, "aligned_reads/")
 			bblog = self.prep_dir(out_base, "bbmap_log/")
 			aln_log = self.prep_dir(out_base, "alignment_log/")
+			#prob_tgt = self.prep_dir(out_base, "probable_target_coords/")
 			
 			for triplet in self.simlens:
 				#maxlen = triplet[2]
 				maxlen = triplet[1]
 				#print("requested length", maxlen, "seqlen", l)
 				if maxlen < l:
-					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce, self.use_blast)
+					next_item = one_protein(base[0], self.sim_arg_template, num, prot, triplet, self.shared_db, cs, ce, self.use_blast, ps, pe)
 					self.items_to_sim.append(next_item)
 					
 				num += 1
-						
+		
+		
+		
 	def run_simulation(self):
 		if self.use_blast:
 			prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using BLASTx. This will take a long time.")
@@ -317,10 +462,102 @@ class read_manager:
 			shutil.rmtree("ref/index/")
 		if len(os.listdir("ref/")) == 0:
 			shutil.rmtree("ref/")
+	
+class probable_target_finder:
+	#probable_target_finder(proteome, self.shared_db, output_aln, output_coords, self.use_blast)
+	def __init__(self, parent, proteome_file, diamond_database, out_aln, out_coords, reference_lengths, ref_proteins):
+		self.parent = parent
+			
+		#self.in_coords = reference_coords
+		self.proteome = proteome_file
+		self.db = diamond_database
+		self.out_aln = out_aln
+		self.out_coords = out_coords
+
+		self.aligned_prots = None
+		self.probable_target_coords = None
 		
+		self.reflens = reference_lengths
+		self.ref_prots = ref_proteins
+		
+		self.protein_metadata = {}
+		self.probable_hits = {}
+		
+	def read_protein_locs(self):
+		#self.protein_metadata = {}
+		fh = open(self.proteome)
+		for line in fh:
+			if line.startswith(">"):
+				relevant = line.strip().split()[0]
+				relevant = relevant.split(";")
+				id = relevant[0][1:]
+				start = int(relevant[1])
+				end = int(relevant[2])
+				
+				strand = relevant[3]
+				
+				self.protein_metadata[id] = [start, end, strand]
+			else:
+				pass
+	
+	def align_prots(self):
+		align_command = ["diamond",
+				"blastp", #protein aln
+				"--sensitive", #try harder to align distant matches
+				"--max-target-seqs", "0", #report all discovered alignments for each read
+				"--unal", "0", #report no unaligned reads
+				"--outfmt", "6", #output as tabular blast
+				"--db", self.db, #the reference protein db
+				"--query", self.proteome, #full proteome
+				"--out", self.out_aln] #This output alignment file
+				
+		subprocess.call(align_command, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+		#subprocess.call(align_command)
+	
+	def parse_alignments_to_coords(self):
+		outwriter = open(self.out_coords, "w")
+		print("query_parent", "query_id", "qstart", "qend", "qstrand", "aligns_to_target", "pct_aln_to_tgt", "pct_ID_to_tgt", sep = "\t", file = outwriter)
+		passing_targets = []
+		fh = open(self.out_aln)
+		for line in fh:
+			segs = line.strip().split("\t")
+			query = segs[0].split(";")
+			qid = query[0]
+			if qid in self.ref_prots:
+				label = "maps_to_reference_protein"
+			else:
+				label = "discovered_match_through_alignment"
+				
+			#if qid not in self.ref_prots: #We don't need to check already referenced items
+			target = segs[1]
+			tgt_length = self.reflens[target]
+			pid = float(segs[2])
+			aln_len = int(segs[3])
+			pct_aln = round((aln_len/tgt_length) * 100, 2)
+			
+			if pct_aln >= 90.0 and pid >= 50.0: #90% alignment length and 50 pct. ID
+				self.probable_hits[qid] = self.protein_metadata[qid]
+				print(self.parent, qid, *self.protein_metadata[qid], target, pct_aln, pid, label, sep = "\t", file = outwriter)
+			
+		outwriter.close()
+		fh.close()
+		
+	def run(self):
+		try:
+			self.read_protein_locs()
+			self.align_prots()
+			self.parse_alignments_to_coords()
+		except:
+			if os.path.exists(self.out_aln):
+				os.remove(self.out_aln)
+			if os.path.exists(self.out_coords):
+				os.remove(self.out_coords)
+				
+			self.probable_hits = None #This essentially is a result of a GFF being empty, and we want to skip this.
+				
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
-				alignment_database, coord_starts, coord_ends, use_blast):
+				alignment_database, coord_starts, coord_ends, use_blast, prob_starts, prob_ends):
 				
 		self.base = directory_base
 		
@@ -358,11 +595,14 @@ class one_protein:
 		self.coord_starts = coord_starts
 		self.coord_ends = coord_ends
 		
+		self.probable_starts = prob_starts
+		self.probable_ends = prob_ends
+		
 		self.db = alignment_database
 
 		self.final_read_count = 0
 	
-	def simulate_reads(self):		
+	def simulate_reads(self):
 		
 		next_gen = self.template.format(min = self.simlen[0],
 										#med = self.simlen[1],
@@ -432,7 +672,9 @@ class one_protein:
 			print(self.fastq, "could not be generated. ROCkOut cannot continue without this file.")
 		
 	def tag_reads(self):
-		pos_ct, off_ct, neg_ct = 0, 0, 0
+		pos_ct, prob_ct, off_ct = 0, 0, 0
+		
+		previously_tagged = {}
 		
 		bbmap_match = r'SYN_(\d+)_(.+?(?=_))_(.+?(?=_))_\d_(.)_.+?(?=\.)\._(.+?(?=\$|\s)).+'
 		fh = open(self.fasta)
@@ -451,7 +693,8 @@ class one_protein:
 					print("Could not parse line.")
 				
 				fr, to = int(fr), int(to)
-				mn, mx = min(fr, to), max(fr, to)
+				#mn, mx = min(fr, to), max(fr, to)
+				mn, mx = min([fr, to]), max([fr, to])
 				
 				#No interference with ROCker's split scheme.
 				genome_id = genome_id.replace(';', '_')
@@ -479,23 +722,60 @@ class one_protein:
 					malformed = True
 					continue
 
+					
 				is_on_target = False
 				for start, end in zip(self.coord_starts, self.coord_ends):
 					if is_on_target:
 						continue
 					#if the read ends before the gene, mx will be < start
 					#if the gene ends before the read, mn will be > end
-					if mx > start and mn < end:
+					if mx >= start and mn <= end:
 						is_on_target = True
-					
+				
+				is_probable_target = False
+				if not is_on_target: #Do NOT check already-flagged target sequences
+					for start, end in zip(self.probable_starts, self.probable_ends):
+						if is_probable_target:
+							continue
+						if mx >= start and mn <= end:
+							is_probable_target = True
+				
+				
+				
 				#if (start_window - 1) == end_window:
 				if is_on_target:
+					printable_name = ">" + tagged_name + ";Target"
 					#The read falls inside a target gene window and we should tag it as on-target
-					print(">" + tagged_name + ";Target", file = out)
 					pos_ct += 1
 				else:
-					print(">" + tagged_name + ";Non_Target", file = out)
-					off_ct += 1
+					if is_probable_target:
+						printable_name = ">" + tagged_name + ";Probable_Target"
+						prob_ct += 1
+					else:
+						printable_name = ">" + tagged_name + ";Non_Target"
+						off_ct += 1
+				
+				print(printable_name, file = out)
+				
+				'''		
+				if id == "3557":
+					if "ENA|AP006840|AP006840.1" in printable_name:
+						print("")
+						print("")
+						print("gene coords are supposed to be [826226] [827293]")
+						print("")
+						print("readlen", int((self.simlen[0]+self.simlen[1])/2))
+						print("read_coords", mn, mx)
+						print("gene_coords", self.coord_starts, self.coord_ends)
+						print("start in gene", mx > start)
+						print("end in gene", mn < end)
+						print("is targ", is_on_target)
+						print("prob targ", is_probable_target)
+						print(printable_name)
+						print("")
+						print("")
+						print("")
+				'''
 				
 			else:
 				if not malformed:
@@ -505,7 +785,7 @@ class one_protein:
 		fh.close()
 		out.close()
 		
-		return [pos_ct, off_ct, neg_ct]
+		return [pos_ct, prob_ct, off_ct]
 		
 	def align_reads(self):
 		if self.use_blast:
@@ -806,7 +1086,11 @@ def build_project(parser, opts):
 					extra_long = [xll, xlu],
 					use_blast = do_blast)
 	
+	#quit()
+	
+	mn.find_probable_targets()
+	mn.run_target_finder()
+	
+	mn.make_prep()
 	mn.run_simulation()
 
-	#shutil.rmtree("ref/genome/")
-	#shutil.rmtree("ref/genome/")

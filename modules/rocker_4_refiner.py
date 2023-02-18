@@ -570,10 +570,9 @@ class plot_data:
 				#current_data = current_data.loc[current_data['read_length']==self.current_read_len]
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 				
-				
 				fig = px.scatter(current_data, x="midpoint", y ="bitscore", color = 'classifier', hover_data = ['read_id', 'target'], 
-				color_discrete_sequence = ["blue", "darkorange", "green"],
-				category_orders={"classifier": ["Target", "Non_Target", "Negative"]}, 
+				color_discrete_sequence = ["blue", "aqua", "darkorange", "green"], 
+				category_orders={"classifier": ["Target", "Probable_Target", "Non_Target", "Negative"]}, 
 				symbol = "UniProt ID, protein name")
 				
 				fig.update_layout(scene = dict(
@@ -590,7 +589,8 @@ class plot_data:
 				current_data = self.loaded_data[rl].copy()
 				
 				current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
-				hit_type_to_color = {"Target":"blue", "Non_Target":"darkorange", "Negative":"green"}
+				#hit_type_to_color = {"Target":"blue", "Non_Target":"darkorange", "Negative":"green"}
+				hit_type_to_color = {"Target":"blue", "Probable_Target":"aqua", "Non_Target":"darkorange", "Negative":"green"}
 				hit_colors = [hit_type_to_color[t] for t in current_data["classifier"]]
 				current_data.insert(0, "color", hit_colors)
 				
@@ -626,8 +626,8 @@ class plot_data:
 			current_data = current_data.loc[current_data['protein'].isin(self.active_proteins)]
 			
 			fig = px.scatter_3d(current_data, x="midpoint", y ="bitscore", z="read_length", color = 'classifier',
-				color_discrete_sequence = ["blue", "darkorange", "green"], 
-				category_orders={"classifier": ["Target", "Non_Target", "Negative"]})
+				color_discrete_sequence = ["blue", "aqua", "darkorange", "green"], 
+				category_orders={"classifier": ["Target", "Probable_Target", "Non_Target", "Negative"]})
 			
 			fig.update_layout(scene = dict(
 						xaxis_title='Position in Protein',
