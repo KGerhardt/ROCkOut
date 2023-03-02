@@ -29,8 +29,11 @@ class plot_data:
 		self.offsets = None
 		self.multiple_align_size = 0
 		self.valid_targets = None
+		self.invalid_targets = None
 		self.targets_for_writeout = None
 		
+		self.valid_origin_proteins = None
+
 		self.positive_targets_file = None
 		self.positive_targets_dmnd = None
 		#Blastdb makes 6 files, so the prefix is enough
@@ -131,20 +134,39 @@ class plot_data:
 
 	def find_valid_targets(self):
 		self.valid_targets = []
+		self.invalid_targets = []
 		self.targets_for_writeout = ""
+		
+		self.valid_origin_proteins = []
+		#self.invalid_origin_genomes = []
+		
 		self.manager.parse_coords()
 		for prot in self.manager.targets:
-			for file in self.manager.targets[prot]:
+			for file in self.manager.targets[prot]:				
 				if '/positive/' in file:
 					fh = open(file)
 					for line in fh:
 						self.targets_for_writeout += line
 						if line.startswith(">"):
 							next_item = line.strip().split()[0][1:]
+							origin_protein = next_item.split("__")[-1]
+							#origin_genome = origin_genome.split(".")[0]
+							self.valid_origin_proteins.append(origin_protein)
 							self.valid_targets.append(next_item)
+					fh.close()
+				else: #is negative
+					fh = open(file)
+					for line in fh:
+						self.targets_for_writeout += line
+						if line.startswith(">"):
+							next_item = line.strip().split()[0][1:]
 					fh.close()
 				
 		self.valid_targets = set(self.valid_targets)
+		#self.invalid_targets = set(self.invalid_targets)
+		
+		self.valid_origin_proteins = set(self.valid_origin_proteins)
+		#self.invalid_origin_genomes = set(self.invalid_origin_genomes)
 		
 	def load_reads(self):
 		self.loaded_data = {}
@@ -167,6 +189,8 @@ class plot_data:
 					self.loaded_data[avg_read_length] = []
 					read_best_hits[avg_read_length] = {}
 					
+				origin_genome = os.path.basename(file)
+				origin_genome = origin_genome.split("_read_len_")[0]
 				fh = open(file)
 				for line in fh:
 					#This is blast data.
@@ -175,9 +199,16 @@ class plot_data:
 					read_classifier = segs[0].split(";")
 					read_id = segs[0]
 					read_classifier = read_classifier[len(read_classifier)-1]
+					
 					alignment_target = segs[1]
 					
 					if alignment_target not in self.valid_targets:
+						continue
+						
+					#Positive foreign targets can be skipped - these are either:
+					#(1) Negative foreign targets which will be seen as negatives in the negatives directories
+					#(2) Positive foreign targets which will be seen as targets in the positives directories
+					if read_classifier == "Foreign_Target":
 						continue
 						
 					alignment_range = [int(segs[8]), int(segs[9])]
@@ -240,6 +271,7 @@ class plot_data:
 				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
+
 					
 				fh = open(file)
 				for line in fh:
@@ -248,12 +280,24 @@ class plot_data:
 					#target, off-target, or negative.
 					#read_classifier = segs[0].split(";")
 					#read_classifier = read_classifier[len(read_classifier)-1]
+
 					read_id = segs[0]
-					read_classifier = "Negative" # We do not need to check this for negatives
+					read_classifier = read_classifier[-1]
+					
+					#read_classifier = "Negative" # We do not need to check this for negatives
 					alignment_target = segs[1]
 			
 					if alignment_target not in self.valid_targets:
-						continue			
+						continue	
+
+					if read_classifier == "Foreign_Target":
+						origin_protein = segs[-2]
+						if origin_protein in self.valid_origin_proteins:
+							read_classifier = "Target"
+						else:
+							read_classifier = "Negative"
+					else:
+						read_classifier = "Negative"
 			
 					alignment_range = [int(segs[8]), int(segs[9])]
 					start = min(alignment_range)
@@ -264,12 +308,6 @@ class plot_data:
 					
 					offset_locs = mid_finder + self.offsets[alignment_target][mid_finder]
 					midpt = np.median(offset_locs)
-					#midpt = int()
-					
-					#midpt = np.median(self.offsets[alignment_target][mid_finder])
-					#include offsets. I am not sure this is correct yet.
-					#midpt = int((start + offset_locs[start] + end + offset_locs[end])/2)
-					#midpt = int((start + end)/2)
 					
 					bitscore = float(segs[11])
 					pct_id = float(segs[2])
@@ -306,18 +344,7 @@ class plot_data:
 		self.active_proteins = set()
 			
 		self.max_position = 0
-		'''
-		#If reads were attempted to be added
-		to_remove = []
-		for rl in self.loaded_data:
-			if len(self.loaded_data[rl]) == 0:
-				to_remove.append(rl)
-		
-		for rl in to_remove:
-			discard = self.loaded_data.pop(rl)
-		
-		discard = None
-		'''
+
 		for rl in read_best_hits:
 			self.loaded_data[rl] = []
 			for read_id in read_best_hits[rl]:
@@ -332,10 +359,11 @@ class plot_data:
 			self.loaded_data[rl].columns = ["read_id", "read_length", "parent", "protein", 
 											"classifier", "target", "midpoint", "start", "end", 
 											"bitscore", "pct_id", "aln_len", "UniProt ID, protein name"]
+			
 			#print(self.loaded_data[rl])
 			#This should probably be reimplemented up above.
-			#clean the dataframes to best hit by read
-			#self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
+			#clean the dataframes to best hit by read - this takes care of repeat genome simulations
+			self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
 			
 			#Add max as needed.
 			self.max_position = max(self.max_position, max(self.loaded_data[rl]["end"]))
@@ -717,12 +745,24 @@ class plot_data:
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
 		out_path_base = os.path.normpath(out_path_base)
+	
+		config = {
+			'scrollZoom': True,
+				'toImageButtonOptions': {
+				'format': 'svg', # one of png, svg, jpeg, webp
+				'filename': 'custom_image',
+				'height': 1080,
+				'width': 1920,
+				'scale': 1 # Multiply title/legend/axis/canvas sizes by this factor
+		  }
+		}	
+	
 		#Save interactive plots.
 		for plot_title in self.figs:
 			#We don't need the separate roc plots without the read overlays.
 			if not plot_title.startswith("roc_plot_"):
 				print("Printing", plot_title)
-				self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"))
+				self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"), config = config)
 
 	def output_models(self):
 		reads_path = out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")

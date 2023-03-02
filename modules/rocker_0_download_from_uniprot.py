@@ -194,7 +194,6 @@ class download_manager:
 						else:
 							gen_tags[p].append(tag)
 						
-						
 						this_trans = item_set[len(item_set)-1]
 						
 						#wts[tag]["seq_prot"] = this_trans
