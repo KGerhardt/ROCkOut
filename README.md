@@ -124,6 +124,8 @@ python rockout_main.py refine-ni [-h] [-d OUT]
 ```
 
 To Use a ROCker model:
+
+1. Map reads to a set of reference sequencing with a corresponding ROCker model.
 1. filter 
 1. pplace-prep
 
