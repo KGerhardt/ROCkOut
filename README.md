@@ -100,7 +100,7 @@ If using conda, activate the environment
 conda activate ROCkOut
 ```
 
-Before building the model, ROCkIn is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the separate README in the ROCkIn directory for more details.
+Before building the model, [ROCkIn](https://github.com/rotheconrad/ROCkIn) is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the separate README in the ROCkIn directory for more details.
 
 Manually create a simple text file with one UniProt ID per line. Create one file for the positive IDs (POS) and optionally negative IDs (NEG). Do no leave any blank lines at the end or beginning of the these files.
 
