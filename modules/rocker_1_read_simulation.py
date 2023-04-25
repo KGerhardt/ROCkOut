@@ -572,9 +572,9 @@ class one_protein:
 		self.use_blast = use_blast
 		
 		if self.use_blast:
-			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_BLAST_log.txt"
+			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".BLAST_log.txt"
 		else:
-			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + "_DIAMOND_log.txt"
+			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".DIAMOND_log.txt"
 		
 		
 		self.template = read_sim_template
@@ -665,7 +665,7 @@ class one_protein:
 		except:
 			pass
 			
-		fh = open(self.out_base + "bbmap_log/"+self.this_readlen + "simlog.txt", "w")
+		fh = open(self.out_base + "bbmap_log/"+self.this_readlen + ".simlog.txt", "w")
 		fh.write(self.generation_log)
 		fh.close()
 			

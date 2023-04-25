@@ -58,7 +58,7 @@ class download_manager:
 		if not os.path.exists(annot_name):
 			os.mkdir(annot_name)
 		
-		fh = open(annot_name + self.prot +"_uniprot_annotation.txt", "w")
+		fh = open(annot_name + self.prot +".uniprot_annotation.txt", "w")
 		fh.write(annot_data)
 		fh.close()
 		#Split the annotation into single lines
@@ -180,7 +180,7 @@ class download_manager:
 			
 			if len(one_file) > 0: #Don't make a coords file for an empty gff
 				#Record coordinates for use later.
-				fh = open(coords_name + p +"_coords.txt", "w")
+				fh = open(coords_name + p +".coords.txt", "w")
 				for item_set in one_file:
 					#print(item_set[0:4])
 					#item_set[2] is trans ID

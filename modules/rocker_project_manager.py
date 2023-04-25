@@ -61,6 +61,11 @@ class project_manager:
 		self.mult_aln_base = None
 		self.mult_aln_files = {}
 		
+		self.outputs_base = None
+		self.rocker_filter = None
+		self.targets_blast = None
+		self.targets_dia = None
+		
 	#List out proteins in a ROCker directory
 	def parse_project_directory(self):
 		if self.project_base is None:
@@ -236,5 +241,27 @@ class project_manager:
 			self.mult_aln_files["tree"] = os.path.normpath(self.mult_aln_base + "/target_seq_tree.txt")
 		else:
 			print("Multiple alignment directory not found!")
+	
+	def collect_final_info(self):
+		self.outputs_base = os.path.normpath(self.project_base + "/final_outputs/")
+		filter_dir = os.path.normpath(self.outputs_base + "/model")
+		db_dir = os.path.normpath(self.outputs_base + "/database")
 		
+		if os.path.exists(filter_dir):
+			filter = os.path.normpath(filter_dir + "/ROCkOut_Filter.txt")
+			if os.path.exists(filter):
+				self.rocker_filter = filter
+			
+		if os.path.exists(db_dir):
+			dia = os.path.normpath(db_dir + "/positive_proteins_diamond_db.dmnd")
+			bla = os.path.normpath(db_dir + "/positive_proteins_blast_database")
+			
+			#print("DIAMOND", dia)
+			
+			if os.path.exists(dia):
+				self.targets_dia = dia
+			if os.path.exists(bla+".phr"): #the blast db is actually 6 files with different extensions
+				self.targets_blast = bla
+		
+
 	

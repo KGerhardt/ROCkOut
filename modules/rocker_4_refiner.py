@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objs as go
 
 from .rocker_project_manager import project_manager
+from .pplacer.rocker_phylomap_build import phylomap_build		 
 
 import subprocess
 
@@ -52,7 +53,7 @@ class plot_data:
 		self.max_position = None
 		
 		self.senspec = None
-		self.rev_senspec = None
+
 		
 		#How many AA will be considered at a time when calculating ROC - this a sliding window
 		self.window_size = 20
@@ -60,21 +61,25 @@ class plot_data:
 		#Note: it's entirely possible to calculate the ROC without binning, but gains are negligible and it's slower.
 		self.resolution = 0.5
 		self.models = None
-		self.rev_models = None
 		self.aln_len_models = None
 		self.pct_id_models = None
 		
 		self.figs = {}
 	
 	def set_project(self, project_directory):
-		try:
+		#try:
+		if True:
 			print("Parsing:", project_directory, "...")
 			self.project_dir = project_directory
 			
+			out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
+			if not os.path.exists(out_path_base):
+				os.mkdir(out_path_base)
+			
 			self.positive_targets_file = os.path.normpath(self.project_dir + "/final_outputs/database/positive_proteins_aa.fasta")
-			self.positive_targets_dmnd = os.path.normpath(self.project_dir + "/final_outputs/database//positive_proteins_diamond_db.dmnd")
+			self.positive_targets_dmnd = os.path.normpath(self.project_dir + "/final_outputs/database/positive_proteins_diamond_db.dmnd")
 			#Blastdb makes 6 files, so the prefix is enough
-			self.positive_targets_blast = os.path.normpath(self.project_dir + "/final_outputs/database//positive_proteins_blast_database")
+			self.positive_targets_blast = os.path.normpath(self.project_dir + "/final_outputs/database/positive_proteins_blast_database")
 			
 			self.index = os.path.normpath(project_directory + "/ROCkOUT_index.txt")
 			self.manager = project_manager(project_directory)
@@ -82,6 +87,12 @@ class plot_data:
 			self.manager.parse_targets()
 			self.manager.parse_aligns()
 			self.manager.parse_multiple_alignment()
+			
+			genomes_for_pplacer = []
+			for protein_ID in self.manager.positive: #Only positive sequences, please
+				for genome in self.manager.targets_nt[protein_ID]:
+					genomes_for_pplacer.append(genome)			
+			
 			
 			self.prepare_offsets() #load a MA and determine position by position offset for each target protein.
 			self.find_valid_targets()
@@ -92,9 +103,14 @@ class plot_data:
 			
 			self.successful_load = True
 			print("Project loaded!")
+			
+			phylomap_build(genomes = genomes_for_pplacer,
+				output = out_path_base)
+		'''
 		except:
 			print("Couldn't parse directory!")
 			self.successful_load = False
+		'''
 		
 	def prepare_offsets(self):
 		current_seq = ""
@@ -117,7 +133,6 @@ class plot_data:
 		if len(current_seq) > 0:
 			self.offsets[current_prot] = current_seq
 			self.multiple_align_size = len(current_seq) #All seqlens are identical with multiple alignment.
-		
 		
 		for p in self.offsets:
 			offset_list = []
@@ -381,15 +396,7 @@ class plot_data:
 		for prot in self.active_proteins:
 			self.active_prot_dict[prot] = True
 		
-	def calculate_youden(self, current_window_tgt, current_window_con, is_rev = False):
-		if is_rev:
-			#Hmm... no longer a cumsum.
-			swap1 = np.flip(current_window_tgt, axis = 1)
-			swap2 = np.flip(current_window_con, axis = 1)
-			current_window_tgt = swap2
-			current_window_con = swap1
-			#print(current_window_tgt)
-		
+	def calculate_youden(self, current_window_tgt, current_window_con):		
 		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
 		max_by_bitscore_tgt = np.amax(current_window_tgt, axis = 1)
 		max_by_bitscore_con = np.amax(current_window_con, axis = 1)
@@ -432,14 +439,9 @@ class plot_data:
 		
 		Youden_by_bs = sensitivity + specificity - 1
 		
-
 		#Argmax returns the first occurrence is there is a tie
 		#this equivalent to the highest bitscore among ties, usually seen where Youden = 1
-		
-		if is_rev:
-			cutoff = np.argmax(Youden_by_bs[::-1])
-		else:
-			cutoff = np.argmax(Youden_by_bs)
+		cutoff = np.argmax(Youden_by_bs)
 			
 		if np.isnan(Youden_by_bs[cutoff]):
 			#Natural return is 0 when there's no conf, but we actually want to choose
@@ -458,12 +460,10 @@ class plot_data:
 			return array[idx]
 			
 		self.models = []
-		self.rev_models = []
 		self.aln_len_models = []
 		self.pct_id_models = []
 		
 		self.senspec = {}
-		self.rev_senspec = {}
 
 		#Separate the data into groups of mean read lengths.
 		#read_lengths = list(set(current_data["read_length"]))
@@ -560,32 +560,19 @@ class plot_data:
 				#In-group cutoffs
 				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
 				
-				#Here, we're gonna assume that the out-group is "target" and calculate an 
-				#out-group threshold as well as a lower bound.
-				rev_cutoff, rev_accuracy, rev_sensitivity, rev_specificity = self.calculate_youden(current_window_tgt, current_window_con, is_rev = True)
-				
 				if rl not in self.senspec:
 					self.senspec[rl] = []
-					self.rev_senspec[rl] = []
 					
 				self.senspec[rl].append((window_midpoint, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
-				self.rev_senspec[rl].append((window_midpoint, rev_accuracy[rev_cutoff], rev_sensitivity[rev_cutoff], rev_specificity[rev_cutoff],))
 
 				cutoff_bitscore = desc_bitscores[cutoff]
-				rev_cutoff_bitscore = desc_bitscores[rev_cutoff]
 				
 				data = (rl, window_midpoint, cutoff_bitscore,)
-				rev_data = (rl, window_midpoint, rev_cutoff_bitscore,)
 				
 				self.models.append(data)
-				self.rev_models.append(rev_data)
 				
 		self.models = pd.DataFrame(self.models)
 		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
-		
-		self.rev_models = pd.DataFrame(self.rev_models)
-		self.rev_models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
-		
 		
 	def craft_plot(self):
 		if self.loaded_data is not None:
@@ -673,7 +660,6 @@ class plot_data:
 		
 		if self.models is not None:
 			current_data = self.models.copy()
-			rev_current_data = self.rev_models.copy()
 			fig = px.line_3d(current_data, x="window_midpt", y="bitscore_cutoff", z="read_length", line_group="read_length")
 			fig.update_layout(scene = dict(
 						xaxis_title='Position in Protein',
@@ -701,22 +687,9 @@ class plot_data:
 				
 				self.figs[fig_title] = fig
 				
-				rev_sub = rev_current_data[rev_current_data['read_length'] == rl]
-				rev_fig = px.line(rev_sub, x="window_midpt", y= "bitscore_cutoff", color_discrete_sequence = ["red"])
-				rev_fig.update_layout(scene = dict(
-						xaxis_title='Position in Protein',
-						yaxis_title='Bitscore'))
-						
-				rev_fig_title = "roc_plot_"+str(rl)
-				
-				#out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")
-				#fig.write_html(out_path_base+"/"+fig_title+".html")
-				
-				self.figs[rev_fig_title] = rev_fig
 				
 				corresp = "scatter_2d_read_len_"+str(rl)
 				if corresp in self.figs:
-					#self.figs[corresp] = go.Figure(data=self.figs[corresp].data + fig.data + rev_fig.data)
 					self.figs[corresp] = go.Figure(data=self.figs[corresp].data + fig.data)
 	
 	def craft_acc_sens_spec(self):
@@ -738,10 +711,8 @@ class plot_data:
 	
 	def output_plots(self):
 		#Create output folders if needed
-		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
-		if not os.path.exists(out_path_base):
-			os.mkdir(out_path_base)
-		out_path_base += "/figures"
+		out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")
+
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
 		out_path_base = os.path.normpath(out_path_base)

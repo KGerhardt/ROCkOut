@@ -73,16 +73,24 @@ def options(action):
 		
 	if action == "refine-non-interactive":
 		parser.description = "ROCkOut refine non-interactive mode"
-		
 	
-	if action == "align-and-filter":
-		parser.description = "ROCkOut align and filter"
+	if action == "align":
+		parser.description = "ROCkOut align. Align one or several reads to the positive protein set of a ROCkOut project. Requires downloading a complete ROCkOut model or running ROCkOut through the refine module on your project, first."
+		parser.add_argument('-i', '--input_reads',  dest = 'reads', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
+		parser.add_argument('-o', '--output_alignments',  dest = 'alignments', default = None, help =  'A comma-sep list of paths to output alignments for your reads. Names will be automatically generated based on the input reads name if this is omitted.')
+		
+		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'Prepare for ROCkOut filter step by creating a directory and placing outputs at this path')
+		parser.add_argument('--use_blast', dest = 'use_blast', action = 'store_true', help = "Use BLASTx for read alignment instead of DIAMOND.")
 		
 	if action == "filter":
-		parser.description = "ROCkOut filter"
+		parser.description = "ROCkOut filter: give a ROCkOut project directory and a reads directory created with ROCkOut align to filter reads."
+		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'A directory containing two subdirectories: "alignments", and "original_reads." These will be used by ROCkOut to filter the alignments')
 		
-	if action == "mult-aln":
+	
+	if action == "place":
 		parser.description = "ROCkOut multiple alignment"
+		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'A directory containing five subdirectories as created by ROCkOut filter.')
+		parser.add_argument('-p','--placement_count', dest = 'placements', default = 1, help = 'Max number of phylogenetic placements to keep per read. Default 1 (best single placement).')
 		
 	#These are universal and I want them last
 	parser.add_argument('-t', '--threads',  dest = 'threads', default = 1, help =  'Num threads to use for parallel processing')
@@ -172,19 +180,21 @@ def run_refine_non_interactive(parser, opts):
 	from modules.rocker_4_refiner import non_interactive
 	non_interactive(parser, opts)
 	
-def run_align_and_filter(parser, opts):
-	pass
+#Align reads to a project's proteins
+def run_align(parser, opts):
+	from modules.rocker_align_to_refs import align_to_refs
+	align_to_refs(parser, opts)
 	
 def run_filter(parser, opts):
-	pass
+	from modules.rocker_filter import do_filter
+	do_filter(parser, opts)
 	
-def run_pplace_build(parser, opts):
-	from modules.rocker_6_build_ref_tree import make_reftree
-	make_reftree(parser, opts)
-
+def run_pplacer(parser, opts):
+	from modules.pplacer.rocker_phylomap_place import phylomap_place
+	phylomap_place(parser, opts)
 
 def main():
-	valid_actions = ['download', 'build', 'refine', 'refine-ni', 'align', 'filter', 'pplace-prep']
+	valid_actions = ['download', 'build', 'refine', 'refine-ni', 'align', 'filter', 'place']
 
 	if len(sys.argv) < 2:
 		print("ROCkOut needs to be given an action! One of:", valid_actions)
@@ -218,8 +228,14 @@ def main():
 	if action == "refine-ni":
 		run_refine_non_interactive(parser, opts)
 		
-	if action == "pplace-prep":
-		run_pplace_build(parser, opts)
+	if action =="align":
+		run_align(parser, opts)
+		
+	if action =="filter":
+		run_filter(parser, opts)
+		
+	if action == "place":
+		run_pplacer(parser, opts)
 		
 	
 if __name__ == "__main__":
