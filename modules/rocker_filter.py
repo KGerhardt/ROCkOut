@@ -41,6 +41,7 @@ class rocker_filterer:
 		if os.path.exists(self.proj_dir):
 			filter_path = os.path.normpath(self.proj_dir + "/final_outputs/model/ROCkOut_Filter.txt")
 			#print(filter_path)
+			#print(os.path.exists(filter_path))
 			if os.path.exists(filter_path):
 				#Only set this to not None if the file can be found.
 				self.filter_file = filter_path
@@ -52,7 +53,8 @@ class rocker_filterer:
 	def find_ma(self):
 		if os.path.exists(self.proj_dir):
 			ma_path = os.path.normpath(self.proj_dir + "/shared_files/multiple_alignment/complete_multiple_alignment_aa.fasta" )
-			if os.path.exists(ma_path):
+			print(ma_path)
+			if os.path.exists(ma_path):				
 				#Only set this to not None if the file can be found.
 				self.ma_file = ma_path
 				self.get_offsets()
@@ -174,7 +176,9 @@ class rocker_filterer:
 		self.failing_alns = []
 		
 		raws = os.listdir(self.orig)
+		raws.sort()
 		alignments = os.listdir(self.alns)
+		alignments.sort()
 		
 		if not len(raws) == len(alignments):
 			print("Mismatch in length of reads to filter and their original FASTA counterparts. Exiting.")
