@@ -194,7 +194,7 @@ def run_pplacer(parser, opts):
 	phylomap_place(parser, opts)
 
 def main():
-	valid_actions = ['download', 'build', 'refine', 'refine-ni', 'align', 'filter', 'place']
+	valid_actions = ['download', 'build', 'refine', 'align', 'filter', 'place']
 
 	if len(sys.argv) < 2:
 		print("ROCkOut needs to be given an action! One of:", valid_actions)
@@ -222,10 +222,10 @@ def main():
 	if action == "build":
 		run_build(parser, opts)
 		
-	if action == "refine":
-		run_refine(parser, opts)
+	#if action == "refine":
+	#	run_refine(parser, opts)
 		
-	if action == "refine-ni":
+	if action == "refine":
 		run_refine_non_interactive(parser, opts)
 		
 	if action =="align":
