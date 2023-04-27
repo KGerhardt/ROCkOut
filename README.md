@@ -57,10 +57,7 @@ Additionally, ROCkOut is designed to support the user through visual aids and su
 - [pandas](https://pandas.pydata.org/) 
 - [numpy](https://numpy.org/)
 - [requests](https://requests.readthedocs.io/en/latest/)
-- [dash](https://dash.plotly.com/introduction)
-- [ete3](http://etetoolkit.org/)
 - [taxtastic](https://github.com/fhcrc/taxtastic)
-- [pyqt](https://www.riverbankcomputing.com/software/pyqt/)
 
 #### References
 
