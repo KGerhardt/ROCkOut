@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objs as go
 
 from .rocker_project_manager import project_manager
-from .pplacer.rocker_phylomap_build import phylomap_build		 
+from .pplacer.rocker_phylomap_build import phylomap_build 
 
 import subprocess
 
@@ -88,11 +88,6 @@ class plot_data:
 			self.manager.parse_aligns()
 			self.manager.parse_multiple_alignment()
 			
-			genomes_for_pplacer = []
-			for protein_ID in self.manager.positive: #Only positive sequences, please
-				for genome in self.manager.targets_nt[protein_ID]:
-					genomes_for_pplacer.append(genome)			
-			
 			
 			self.prepare_offsets() #load a MA and determine position by position offset for each target protein.
 			self.find_valid_targets()
@@ -104,8 +99,30 @@ class plot_data:
 			self.successful_load = True
 			print("Project loaded!")
 			
-			phylomap_build(genomes = genomes_for_pplacer,
-				output = out_path_base)
+			genomes_for_pplacer_pos = []
+			for protein_ID in self.manager.positive: #Only positive sequences, please
+				for genome in self.manager.targets_nt[protein_ID]:
+					genomes_for_pplacer_pos.append(genome)
+					
+				genomes_for_pplacer_pos = list(set(genomes_for_pplacer_pos))
+			
+			genomes_for_pplacer_neg = []	
+			for protein_ID in self.manager.negative: #Only positive sequences, please
+				for genome in self.manager.targets_nt[protein_ID]:
+					genomes_for_pplacer_neg.append(genome)
+						
+				genomes_for_pplacer_neg = list(set(genomes_for_pplacer_neg))
+				
+			if len(genomes_for_pplacer_pos) == 0:
+				genomes_for_pplacer_pos = None
+				
+			if len(genomes_for_pplacer_neg) == 0:
+				genomes_for_pplacer_neg = None
+				
+			#We need to hit both the main
+			phylomap_build(pos = genomes_for_pplacer_pos,
+							neg = genomes_for_pplacer_neg,
+							output = out_path_base)	
 		'''
 		except:
 			print("Couldn't parse directory!")
@@ -154,6 +171,9 @@ class plot_data:
 		
 		self.valid_origin_proteins = []
 		#self.invalid_origin_genomes = []
+		
+		#copy to outputs
+		
 		
 		self.manager.parse_coords()
 		for prot in self.manager.targets:
@@ -212,7 +232,7 @@ class plot_data:
 					segs = line.strip().split("\t")
 					#target, off-target, or negative.
 					read_classifier = segs[0].split(";")
-					read_id = segs[0]
+					read_id = ';'.join(read_classifier[:-1])
 					read_classifier = read_classifier[len(read_classifier)-1]
 					
 					alignment_target = segs[1]
@@ -261,14 +281,23 @@ class plot_data:
 							pct_id,
 							alignment_length,
 							double_key,)
-					
-					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
-					
+										
 					if read_id not in read_best_hits[avg_read_length]:
 						read_best_hits[avg_read_length][read_id] = data
 					else:
-						if bitscore > read_best_hits[avg_read_length][read_id][9]:
-							read_best_hits[avg_read_length][read_id] = data
+						#read ID has already been found, so the read either aligns multiple times or comes from multiple copies of the same genome
+						existing_bitscore = read_best_hits[avg_read_length][read_id][9]
+						existing_label = read_best_hits[avg_read_length][read_id][4]
+						
+						#if true, these are almost certainly the same read from the same genome 
+						#under different UniProt IDs - favor the one labeled as target
+						if np.isclose(bitscore, existing_bitscore):
+							#replace a non-target with a target
+							if read_classifier == "Target" and existing_label != "Target":
+								read_best_hits[avg_read_length][read_id] = data
+						else:
+							if bitscore > existing_bitscore: #Displace a clearly lower bitscore either way
+								read_best_hits[avg_read_length][read_id] = data
 						
 					#self.loaded_data[avg_read_length].append(data)
 				fh.close()
@@ -286,18 +315,18 @@ class plot_data:
 				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
-
 					
 				fh = open(file)
 				for line in fh:
 					#This is blast data.
 					segs = line.strip().split("\t")
 					#target, off-target, or negative.
-					#read_classifier = segs[0].split(";")
-					#read_classifier = read_classifier[len(read_classifier)-1]
+					read_classifier = segs[0].split(";")
+					read_id = ';'.join(read_classifier[:-1])
+					read_classifier = read_classifier[len(read_classifier)-1]
 
-					read_id = segs[0]
-					read_classifier = read_classifier[-1]
+					#read_id = segs[0]
+					#read_classifier = read_classifier[-1]
 					
 					#read_classifier = "Negative" # We do not need to check this for negatives
 					alignment_target = segs[1]
@@ -348,9 +377,19 @@ class plot_data:
 					
 					if read_id not in read_best_hits[avg_read_length]:
 						read_best_hits[avg_read_length][read_id] = data
-					else:
-						if bitscore > read_best_hits[avg_read_length][read_id][9]:
-							read_best_hits[avg_read_length][read_id] = data
+					else:	
+						existing_bitscore = read_best_hits[avg_read_length][read_id][9]
+						existing_label = read_best_hits[avg_read_length][read_id][4]
+						
+						#if true, these are almost certainly the same read from the same genome 
+						#under different UniProt IDs - favor the one labeled as target
+						if np.isclose(bitscore, existing_bitscore):
+							#replace a non-target with a target
+							if read_classifier == "Target" and existing_label != "Target":
+								read_best_hits[avg_read_length][read_id] = data
+						else:
+							if bitscore > existing_bitscore: #Displace a clearly lower bitscore either way
+								read_best_hits[avg_read_length][read_id] = data
 					
 					#self.loaded_data[avg_read_length].append(data)
 				fh.close()
@@ -736,7 +775,6 @@ class plot_data:
 				self.figs[plot_title].write_html(os.path.normpath(out_path_base+"/"+plot_title+".html"), config = config)
 
 	def output_models(self):
-		reads_path = out_path_base = os.path.normpath(self.project_dir + "/final_outputs/figures")
 		out_path_base = os.path.normpath(self.project_dir + "/final_outputs")
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
@@ -749,8 +787,6 @@ class plot_data:
 		out_path_base = os.path.normpath(out_path_base)
 		if not os.path.exists(out_path_base):
 			os.mkdir(out_path_base)
-
-			
 
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity.txt")
 		sp = open(output_senspec, "w")
@@ -784,10 +820,24 @@ class plot_data:
 		output_filter = os.path.normpath(out_path_base + "/ROCkOut_Filter.txt")
 		self.models.to_csv(output_filter, sep = "\t", index = False)
 		
+		
+		reads_path = os.path.normpath(self.project_dir + "/final_outputs/reads/")
+		if not os.path.exists(reads_path):
+			os.mkdir(reads_path)
+		
 		for rl in self.loaded_data:
 			this_output = os.path.normpath(reads_path + "/read_len_" + str(rl)+"_final_reads.tsv")
 			self.loaded_data[rl].to_csv(this_output, sep = "\t")
-		
+			
+		#Copy the multiple alignment to the model directory
+		ma_path = os.path.normpath(self.project_dir + "/shared_files/multiple_alignment/complete_multiple_alignment_aa.fasta" )
+		out_ma = os.path.normpath(self.project_dir + "/final_outputs/model/complete_multiple_alignment_aa.fasta")
+		fh = open(ma_path)
+		out = open(out_ma, "w")
+		for line in fh:
+			out.write(line)
+		out.close()
+		fh.close()
 		
 	def update_index(self):
 		pass

@@ -34,8 +34,6 @@ class rocker_filterer:
 		self.filtered_passing = None
 		self.passing_alns = None
 		self.failing_alns = None
-		
-		self.run_filterer()
 	
 	def find_filter(self):
 		if os.path.exists(self.proj_dir):
@@ -52,8 +50,8 @@ class rocker_filterer:
 		
 	def find_ma(self):
 		if os.path.exists(self.proj_dir):
-			ma_path = os.path.normpath(self.proj_dir + "/shared_files/multiple_alignment/complete_multiple_alignment_aa.fasta" )
-			print(ma_path)
+			ma_path = os.path.normpath(self.proj_dir + "/final_outputs/model/complete_multiple_alignment_aa.fasta" )
+			#print(ma_path)
 			if os.path.exists(ma_path):				
 				#Only set this to not None if the file can be found.
 				self.ma_file = ma_path
@@ -200,6 +198,7 @@ class rocker_filterer:
 	def run_filter_blast_tabular(self):
 
 		for raw, aln, passing, failing, raw_filt in zip(self.raw_reads, self.reads_to_filter, self.passing_alns, self.failing_alns, self.filtered_passing):
+			print("Filtering", raw)
 			
 			mapping_reads = []
 			fh = open(aln)
@@ -324,7 +323,7 @@ class rocker_filterer:
 			out.close()
 			
 	def run_filterer(self):
-		
+		print("Loading filter resources...")
 		self.find_filter()
 		self.find_ma()
 		
@@ -340,6 +339,8 @@ class rocker_filterer:
 	
 		#self.plot_filter()
 		self.parse_filter_dir()
+		
+		print("Filtering reads...")
 		self.run_filter_blast_tabular()
 	
 def do_filter(parser, opts):

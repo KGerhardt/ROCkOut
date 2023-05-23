@@ -2,10 +2,11 @@ import sys
 import os
 
 class pplacer_operator:
-	def __init__(self, rocker_dir, reads_dir, threads = 1, max_placements = 1):
+	def __init__(self, rocker_dir, reads_dir, threads = 1, max_placements = 1, target_group = "positive"):
 		self.rocker = os.path.normpath(rocker_dir)
 		self.refpak = None
 		self.ref_ma = None
+		self.group = target_group
 		
 		self.reads_base = os.path.normpath(reads_dir)
 
@@ -21,14 +22,16 @@ class pplacer_operator:
 		
 	#Find taxtastic refpak for placement
 	def locate_refpak(self):
-		pak_loc = os.path.normpath(self.rocker+"/final_outputs/phylogenetic_placement/reference_package")
+		pak_loc = os.path.normpath(self.rocker+"/final_outputs/phylogenetic_placement/{ext}/reference_package")
+		pak_loc = pak_loc.format(ext = self.group)
 		rp = os.listdir(pak_loc)
 		rp = os.path.normpath(pak_loc + "/" + rp[0])
 		if os.path.exists(rp):
 			self.refpak = rp
 			
 	def locate_ref_ma(self):
-		ma = os.path.normpath(self.rocker+"/final_outputs/phylogenetic_placement/source/combined_genomes_multiple_alignment.fasta")
+		ma = os.path.normpath(self.rocker+"/final_outputs/phylogenetic_placement/{ext}/source/combined_genomes_multiple_alignment.fasta")
+		ma = ma.format(ext = self.group)
 		if os.path.exists(ma):
 			self.ref_ma = ma
 		
@@ -103,6 +106,14 @@ def check_reads_dir(directory):
 def phylomap_place(parser, opts):
 	rocker_dir = opts.dir
 	reads_dir = opts.filter_dir
+	choice = opts.placement_target
+	
+	valid_placement_choices = ["positive", "negative", "both"]
+	if choice not in valid_placement_choices:
+		print("Placement group", choice, "not found.")
+		print("Must be one of", *valid_placement_choices)
+		parser.print_help()
+		sys.exit()
 	
 	if rocker_dir is None or reads_dir is None:
 		print("I need both a ROCkOut project dirctory and a reads directory to place reads!")
@@ -122,6 +133,7 @@ def phylomap_place(parser, opts):
 	mn = pplacer_operator(rocker_dir = rocker_dir,
 						reads_dir = reads_dir,
 						threads = threads,
-						max_placements = place_ct)
+						max_placements = place_ct,
+						target_group = choice)
 	mn.run_place()
 	

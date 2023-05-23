@@ -379,7 +379,6 @@ class read_manager:
 		#Collect per ID coords to match regular coords.
 		self.per_ID_coords = final_results
 		
-		
 	def make_prep(self):
 		#print(self.genomes_to_sim)
 		#print(self.genlens)

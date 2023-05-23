@@ -77,9 +77,9 @@ def options(action):
 	if action == "align":
 		parser.description = "ROCkOut align. Align one or several reads to the positive protein set of a ROCkOut project. Requires downloading a complete ROCkOut model or running ROCkOut through the refine module on your project, first."
 		parser.add_argument('-i', '--input_reads',  dest = 'reads', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
-		parser.add_argument('-o', '--output_alignments',  dest = 'alignments', default = None, help =  'A comma-sep list of paths to output alignments for your reads. Names will be automatically generated based on the input reads name if this is omitted.')
+		parser.add_argument('--reads_dir',  dest = 'reads_dir', default = None, help =  'A directory containing any number of FASTA format reads to align.')
 		
-		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'Prepare for ROCkOut filter step by creating a directory and placing outputs at this path')
+		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'Output directory for read alignments and filtered read outputs.')
 		parser.add_argument('--use_blast', dest = 'use_blast', action = 'store_true', help = "Use BLASTx for read alignment instead of DIAMOND.")
 		
 	if action == "filter":
@@ -91,6 +91,7 @@ def options(action):
 		parser.description = "ROCkOut multiple alignment"
 		parser.add_argument('-f','--filter_directory', dest = 'filter_dir', default = None, help = 'A directory containing five subdirectories as created by ROCkOut filter.')
 		parser.add_argument('-p','--placement_count', dest = 'placements', default = 1, help = 'Max number of phylogenetic placements to keep per read. Default 1 (best single placement).')
+		parser.add_argument('-g','--placement_group', dest = 'placement_target', default = "positive", help = 'Use (default) "positive", "negative", or "both" reference proteins as the phylogenetic target group. "Negative" and "both" depend on both positive and negative groups being present in the project.')
 		
 	#These are universal and I want them last
 	parser.add_argument('-t', '--threads',  dest = 'threads', default = 1, help =  'Num threads to use for parallel processing')

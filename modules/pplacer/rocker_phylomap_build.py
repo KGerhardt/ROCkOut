@@ -2,32 +2,35 @@ import os
 import sys
 
 class phyl_builder:
-	def __init__(self, genomes, outpath):
+	def __init__(self, genomes, outpath, extension):
 		self.gens = genomes
 		self.outpath = outpath
 		
 		self.is_nt = True
 
 		self.make_dir("phylogenetic_placement")
-		self.make_dir("phylogenetic_placement/source")
+		self.make_dir("phylogenetic_placement/{ext}".format(ext = extension))
+		self.make_dir("phylogenetic_placement/{ext}/source".format(ext = extension))
+		self.make_dir("phylogenetic_placement/{ext}/reference_package".format(ext = extension))
 		
-		self.combined_genomes = os.path.normpath(outpath + "/phylogenetic_placement/source/combined_genomes.fasta")
+		self.combined_genomes = os.path.normpath(outpath + "/phylogenetic_placement/{ext}/source/combined_genomes.fasta")
+		self.combined_genomes = self.combined_genomes.format(ext = extension)
 		self.cg_writer = None
 		
-		self.mult_aln = os.path.normpath(outpath + "/phylogenetic_placement/source/combined_genomes_multiple_alignment.fasta")
-		#self.mult_aln = ma
-		self.fasttree_log = os.path.normpath(outpath + "/phylogenetic_placement/source/combined_genomes_fasttree_log.txt")
-		#self.fasttree_log = tree_log
-		self.fasttree_tree = os.path.normpath(outpath + "/phylogenetic_placement/source/combined_genomes_fasttree_tree.txt")
-		#self.fasttree_tree = tree
+		self.mult_aln = os.path.normpath(outpath + "/phylogenetic_placement/{ext}/source/combined_genomes_multiple_alignment.fasta")
+		self.mult_aln = self.mult_aln.format(ext = extension)
 		
-		self.make_dir("phylogenetic_placement/reference_package")
+		self.fasttree_log = os.path.normpath(outpath + "/phylogenetic_placement/{ext}/source/combined_genomes_fasttree_log.txt")
+		self.fasttree_log = self.fasttree_log.format(ext = extension)
 		
-		self.refpkg = os.path.normpath(outpath + "/phylogenetic_placement/reference_package/phylomap_ref.pkg")
+		self.fasttree_tree = os.path.normpath(outpath + "/phylogenetic_placement/{ext}/source/combined_genomes_fasttree_tree.txt")
+		self.fasttree_tree = self.fasttree_tree.format(ext = extension)
+		
+		self.refpkg = os.path.normpath(outpath + "/phylogenetic_placement/{ext}/reference_package/phylomap_ref.pkg")
+		self.refpkg = self.refpkg.format(ext = extension)
 		if os.path.exists(self.refpkg):
 			from shutil import rmtree
 			rmtree(self.refpkg)
-			
 			
 		self.locus =  "placeholder"
 		
@@ -83,8 +86,21 @@ class phyl_builder:
 		self.make_tree()
 		self.make_refpak()		
 
-def phylomap_build(genomes = None, output = None, pakname = "rocker_reference_seqs", quiet = True):			
-	mn = phyl_builder(genomes = genomes,
-					outpath = output)		
-	mn.run()
+def phylomap_build(pos = None, neg = None, output = None, extension = "positive", pakname = "rocker_reference_seqs", quiet = True):			
+	if pos is not None:
+		mn = phyl_builder(genomes = pos,
+						outpath = output,
+						extension = "positive")		
+		mn.run()
+	if neg is not None:
+		mn = phyl_builder(genomes = neg,
+						outpath = output,
+						extension = "negative")		
+		mn.run()
 		
+	if pos is not None and neg is not None:
+		both = pos+neg
+		mn = phyl_builder(genomes = both,
+						outpath = output,
+						extension = "both")
+		mn.run()

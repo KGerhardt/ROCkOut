@@ -12,7 +12,7 @@ def import_rocker_project(project_directory):
 	return manager
 	
 class rocker_aligner:
-	def __init__(self, project_directory, use_blast = False, thds = 1, inpaths = None, outpaths = None, filter_prep = None):
+	def __init__(self, project_directory, use_blast = False, thds = 1, inpaths = None, filter_prep = None):
 		self.prjdir = project_directory
 		self.mn = import_rocker_project(self.prjdir)
 		
@@ -20,7 +20,7 @@ class rocker_aligner:
 		self.blast_db = self.mn.targets_blast
 		
 		self.reads_to_align = inpaths
-		self.output_paths = outpaths
+		self.output_paths = None
 		self.filtered_reads = None
 		
 		self.commands = []
@@ -35,61 +35,36 @@ class rocker_aligner:
 		self.threads = thds
 	
 	def craft_pairs(self):
-		if self.reads_to_align is not None:
-			
-			self.reads_to_align = self.reads_to_align.strip().split(",")
-			if self.ready_for_filter:
-			
-				if not os.path.exists(self.ready_for_filter):
-					os.makedirs(self.ready_for_filter, exist_ok = True)
-				alns = os.path.normpath(self.ready_for_filter + "/alignments")
-				orig = os.path.normpath(self.ready_for_filter + "/original_reads/")
-				if not os.path.exists(alns):
-					os.makedirs(alns, exist_ok = True)
-				if not os.path.exists(orig):
-					os.makedirs(orig, exist_ok = True)
-			
-				self.filtered_reads = []
-				for read in self.reads_to_align:
-					basename = os.path.basename(read)
-					alignment = os.path.normpath(self.ready_for_filter + "/alignments/"+basename+ "_ROCkOut_alignments.txt")
-					filtered_raw = os.path.normpath(self.ready_for_filter + "/original_reads/"+basename+ "_raw_reads_.txt")
-					
-					self.filtered_reads.append((read, alignment, filtered_raw,))
-					
-					if self.use_blast:
-						arg = "blastx -db {database} -query {input} -out {output} -outfmt 6 -num_threads {threads}"
-						arg = arg.format(database = self.blast_db, input = read, output = alignment, threads = self.threads)
-						#Maybe needs a besthit filter here, too?
-					else:
-						arg = "diamond blastx --very-sensitive --unal 0 --db {database} --query {input} --out {output} --outfmt 6 --threads {threads}"
-						arg = arg.format(database = self.diamond_db, input = read, output = alignment, threads = self.threads)
-					
-					self.commands.append(arg)
-					
-			else:
-			
-				if self.output_paths is not None:
-					self.output_paths = self.output_paths.strip().split(",")
-				else:
-					self.output_paths = [os.path.normpath(read_file + "_ROCkOut_alignments.txt") for read_file in self.reads_to_align]
-				
-				if len(self.reads_to_align) == len(self.output_paths):
-					for r, o in zip(self.reads_to_align, self.output_paths):
-						if self.use_blast:
-							arg = "blastx -db {database} -query {input} -out {output} -outfmt 6 -num_threads {threads}"
-							arg = arg.format(database = self.blast_db, input = r, output = o, threads = self.threads)
-							#Maybe needs a besthit filter here, too?
-						else:
-							arg = "diamond blastx --very-sensitive --unal 0 --db {database} --query {input} --out {output} --outfmt 6 --threads {threads}"
-							arg = arg.format(database = self.diamond_db, input = r, output = o, threads = self.threads)
-						
-						self.commands.append(arg)
-				else:
-					print("I can't work with a different number of reads and outputs.")
-		else:
-			print("I need reads to align.")
+		self.reads_to_align = self.reads_to_align.strip().split(",")
+
+		if not os.path.exists(self.ready_for_filter):
+			os.makedirs(self.ready_for_filter, exist_ok = True)
+		alns = os.path.normpath(self.ready_for_filter + "/alignments")
+		orig = os.path.normpath(self.ready_for_filter + "/original_reads/")
+		if not os.path.exists(alns):
+			os.makedirs(alns, exist_ok = True)
+		if not os.path.exists(orig):
+			os.makedirs(orig, exist_ok = True)
 	
+		self.filtered_reads = []
+		for read in self.reads_to_align:
+			basename = os.path.basename(read)
+			alignment = os.path.normpath(self.ready_for_filter + "/alignments/"+basename+ "_ROCkOut_alignments.txt")
+			filtered_raw = os.path.normpath(self.ready_for_filter + "/original_reads/"+basename+ "_raw_reads_.txt")
+			
+			self.filtered_reads.append((read, alignment, filtered_raw,))
+			
+			if self.use_blast:
+				arg = "blastx -db {database} -query {input} -out {output} -outfmt 6 -num_threads {threads}"
+				arg = arg.format(database = self.blast_db, input = read, output = alignment, threads = self.threads)
+				#Maybe needs a besthit filter here, too?
+			else:
+				arg = "diamond blastx --very-sensitive --unal 0 --db {database} --query {input} --out {output} --outfmt 6 --threads {threads}"
+				arg = arg.format(database = self.diamond_db, input = read, output = alignment, threads = self.threads)
+			
+			self.commands.append(arg)
+					
+
 	def clean_reads(self, r, a, c):
 		reads_to_keep = {}
 		with open(a) as fh:
@@ -128,6 +103,8 @@ class rocker_aligner:
 			
 	def align_reads(self):
 		for alignment_arg in self.commands:
+			print("Executing alignment:")
+			print(alignment_arg)
 			self.command_log += alignment_arg + "\n"
 			alignment_arg = alignment_arg.split()
 			proc = subprocess.run(alignment_arg, stdout=subprocess.PIPE, stderr = subprocess.PIPE)
@@ -136,6 +113,7 @@ class rocker_aligner:
 			#print(alignment_arg)
 			#print(proc.stdout.decode())
 			#print(proc.stderr.decode())
+			print("")
 			
 		if self.filtered_reads is not None:
 			for tup in self.filtered_reads:
@@ -144,32 +122,61 @@ class rocker_aligner:
 				clean = tup[2]
 				self.clean_reads(raw, aln, clean)
 				
-			
-		
 	
 def align_to_refs(parser, opts):
 	dir = opts.dir
 	reads = opts.reads
-	output = opts.alignments
+	reads_dir = opts.reads_dir
+	#output = opts.alignments
 	threads = opts.threads
 	blast = opts.use_blast
 	
 	if dir is None:
 		parser.print_help()
+		print("")
+		print("I need a ROCkOut project directory!")
 		sys.exit()
 		
-	if reads is None:
+	if reads is None and reads_dir is None:
 		parser.print_help()
+		print("")
+		print("I need at least one input read file or a read directory to filter!")
 		sys.exit()
+		
+	if reads is not None and reads_dir is not None:
+		parser.print_help()
+		print("")
+		print("Please supply only one kind of read input: paths with --reads or a directory with --reads_dir, not both")
+		sys.exit()
+		
+	if reads is not None:
+		if os.path.isdir(reads):
+			parser.print_help()
+			print("")
+			print("You supplied a directory to --reads. Did you mean to use --reads_dir?")
+			sys.exit()
+	
+	if reads_dir is not None:
+		if os.path.isfile(reads_dir):
+			parser.print_help()
+			print("")
+			print("You supplied a file path to --reads_dir. Did you mean to use --reads?")
+			sys.exit()
+		else:
+			reads = ",".join([os.path.normpath(reads_dir+"/"+r) for r in os.listdir(reads_dir)])
 		
 	filter_prep = opts.filter_dir
+		
+	if filter_prep is None:
+		print("Please specify an output directory! This directory will be created for you.")
+		parser.print_help()
+		sys.exit()
 	
 	mn = rocker_aligner(
 	project_directory = dir,
 	use_blast = blast,
 	thds = threads, 
-	inpaths = reads, 
-	outpaths = output,
+	inpaths = reads,
 	filter_prep = filter_prep)
 	
 	mn.craft_pairs()
