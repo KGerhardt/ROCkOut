@@ -3,7 +3,7 @@ import os
 
 from modules.rocker_project_manager import project_manager
 
-prjdir = sys.argv[1]
+prjdir = sys.argv[1] # provide the rocker project directory.
 
 def collect_group(manager, base, pos = True):
 	collection = {}
