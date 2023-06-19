@@ -256,7 +256,6 @@ class rocker_filterer:
 				else:
 					read_name = segs[0]
 					
-
 					readlength = read_lengths[read_name]
 					
 					if readlength not in self.filter_matrix:

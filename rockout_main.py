@@ -49,13 +49,12 @@ def options(action):
 		help =  'Lower-bound on simulated read length for the extra long set, default: 270')
 		parser.add_argument('--xl-upper',  dest = 'xlu', type = int, default = 330,
 		help =  'Upper-bound on simulated read length for the extra long set, default: 330')
-
 		
 		parser.add_argument('--coverage',  dest = 'cov', default = 20.0, help = "Read coverage depth for simulated reads. Default 20") 
 		parser.add_argument('--snprate',  dest = 'snps', default = 0.01, help = "Per base substitution likelihood. Default 0.01") 
 		parser.add_argument('--insertrate',  dest = 'insrate', default = None, help = "Insertion rate. Default 1/19th of snprate.") 
 		parser.add_argument('--delrate',  dest = 'delrate', default = None, help = "Deletion rate. Default 1/19th of snprate.") 
-	
+		
 		parser.add_argument('--sensitivity', dest = 'dia_sens', default = 1, type = int, help = "DIAMOND sensitivity level integer from 1 to 4. Default 1. 1 = sensitive, 2 = more sensitive, 3 = very sensitive, 4 = ultra sensitive.")
 		parser.add_argument('--use_blast', dest = 'use_blast', action = 'store_true', help = "Use BLASTx for read alignment instead of DIAMOND.")
 		

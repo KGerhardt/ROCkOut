@@ -217,7 +217,7 @@ class plot_data:
 				#Specific protein name
 				title = components[0]
 				#read length
-				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
+				avg_read_length = components[1].split("_aligned_reads.blast.txt")[0]
 				#Initialize this list.
 				
 				if avg_read_length not in self.loaded_data:
@@ -311,7 +311,7 @@ class plot_data:
 				#Specific protein name
 				title = components[0]
 				#read length
-				avg_read_length = components[1].split("_aligned_reads.fasta")[0]
+				avg_read_length = components[1].split("_aligned_reads.blast.txt")[0]
 				
 				if avg_read_length not in self.loaded_data:
 					self.loaded_data[avg_read_length] = []
@@ -560,7 +560,6 @@ class plot_data:
 				else:
 					#per_position_data["Confounder"][falls_into][s:e] += 1
 					per_position_data["Confounder"][falls_into][fills_bins] += 1
-			
 			
 			#Need to join the disparate tabs into 2D arrs for computation.
 			collected_target_data = []

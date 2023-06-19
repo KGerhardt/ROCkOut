@@ -2,18 +2,10 @@ import urllib.request as urlreq
 import plotly
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import sys
+import os
 
-#import dash_html_components as html
-#from dash import html
-
-#from dash import Dash, html
-#import dash_bio as dashbio
-
-#import numpy as np
-
-file = "multiple_alignment/complete_multiple_alignment_aa.fasta"
-#file = "combined_genomes/combined_proteins_aa.fasta"
-
+#file = "multiple_alignment/complete_multiple_alignment_aa.fasta"
 
 def read_fasta(file):
 	cur_seq = ""
@@ -137,13 +129,15 @@ def convert_seqs_to_xyz(seqs, labels, total_size):
 	
 	return x, y, z, text
 	
+
+file = sys.argv[1]
+output = sys.argv[2]
 	
 s, d, max_sl = read_fasta(file)
 
 cols = amino_acid_color_dict()
 
 x, y, z, t = convert_seqs_to_xyz(s, d, max_sl)
-
 
 fig = go.Figure(data=go.Heatmap(
 		x = x,
@@ -169,22 +163,15 @@ fig.update_layout(
 #fig.update_layout(selectdirection='h')
 
 config = {
-	'scrollZoom': True,
+	'scrollZoom': False,
 		'toImageButtonOptions': {
 		'format': 'svg', # one of png, svg, jpeg, webp
 		'filename': 'custom_image',
-		'height': 500,
-		'width': 700,
+		'height': 1080,
+		'width': 1920,
 		'scale': 1 # Multiply title/legend/axis/canvas sizes by this factor
   }
 }
 
 #Takes config options. Write SVG here
-fig.write_html("fig.html", config = config)
-
-class make_multiple_alignment_plot:
-	def __init__(self):
-		self.file = None
-		self.colorscale = None
-		self.main_plot = None
-
+fig.write_html(output, config = config)

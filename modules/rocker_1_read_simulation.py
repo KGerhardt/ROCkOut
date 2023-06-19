@@ -250,7 +250,6 @@ class read_manager:
 		
 		#craft a MA
 		muscle_ma_command_aa = ["muscle", "-in", target_fasta_set, "-out", ma_file]
-		
 		muscle_ma_command_nt = ["muscle", "-in", target_fasta_set_nt, "-out", ma_file_nt]	
 		
 		#These should be nt only
@@ -258,26 +257,26 @@ class read_manager:
 		tree_log_file = os.path.normpath(self.multiple_alignment + "/fasttree_log.txt")
 		#fasttree -log ftl.txt eee/shared_files/multiple_alignment/target_seq_MA.txt > ftt.txt
 		#muscle_tree_command = ["muscle", "-maketree", "-in", self.ma, "-out", self.tree]
-		#subprocess.run(muscle_tree_command)
+		#subprocess.call(muscle_tree_command)
 		
 		fasttree_command = ["fasttree", "-nt", "-gtr", "-log", tree_log_file, "-out", tree_file, ma_file_nt]
 		
 		#Subprocess calls for MA+tree
 		
-		subprocess.run(muscle_ma_command_aa)
-		subprocess.run(muscle_ma_command_nt)	
-		subprocess.run(fasttree_command)
+		subprocess.call(muscle_ma_command_aa)
+		subprocess.call(muscle_ma_command_nt)	
+		subprocess.call(fasttree_command)
 				
 		makedb = ["diamond", "makedb", "--db", target_db_name_dia,  "--in", target_fasta_set]
 		print("Building Diamond database. Log information will follow.")
-		subprocess.call(makedb)
+		process = subprocess.call(makedb)
 		
 		try:
 			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
 			makedb = ["makeblastdb", "-in", target_fasta_set, "-parse_seqids", "-dbtype", "prot", "-out", target_db_name_bla]
 			#print(" ".join(makedb))
 			print("Building BLAST database for positive targets. Log information will follows.")
-			subprocess.call(makedb)
+			process = subprocess.call(makedb)
 		except:
 			print("Couldn't make BLAST database of positive targets!")
 		
@@ -490,13 +489,28 @@ class probable_target_finder:
 				"--sensitive", #try harder to align distant matches
 				"--max-target-seqs", "0", #report all discovered alignments for each read
 				"--unal", "0", #report no unaligned reads
-				"--outfmt", "6", #output as tabular blast
+				"--outfmt", "6", 
+							"qseqid", 
+							"sseqid", 
+							"pident", 
+							"length", 
+							"mismatch", 
+							"gapopen", 
+							"qstart",
+							"qend",
+							"sstart", 
+							"send", 
+							"evalue", 
+							"bitscore", 
+							"qlen", 
+							"slen", #output as tabular blast with seqlen
 				"--db", self.db, #the reference protein db
 				"--query", self.proteome, #full proteome
 				"--out", self.out_aln] #This output alignment file
-				
-		subprocess.call(align_command, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
-		#subprocess.call(align_command)
+		
+		
+		process = subprocess.call(align_command, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+		
 	
 	def parse_alignments_to_coords(self):
 		outwriter = open(self.out_coords, "w")
@@ -566,7 +580,7 @@ class one_protein:
 		self.fastq = self.out_base + "raw_reads/"+ self.this_readlen + "_raw.fastq"
 		self.fasta = self.out_base + "raw_reads/"+ self.this_readlen + "_raw.fasta"
 		self.tagged = self.out_base + "tagged_reads/"+ self.this_readlen + "_tagged.fasta"
-		self.aln_reads = self.out_base + "aligned_reads/"+ self.this_readlen + "_aligned_reads.fasta"
+		self.aln_reads = self.out_base + "aligned_reads/"+ self.this_readlen + "_aligned_reads.blast.txt"
 		
 		self.use_blast = use_blast
 		
@@ -637,7 +651,6 @@ class one_protein:
 				
 	
 	def simulate_reads(self):
-		
 		next_gen = self.template.format(min = self.simlen[0],
 										#med = self.simlen[1],
 										max = self.simlen[1],
@@ -648,8 +661,8 @@ class one_protein:
 		
 		next_gen = next_gen.split()
 		
-		#print(next_gen)
 		proc = subprocess.Popen(next_gen, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		
 		for line in proc.stdout:
 			#Lines are imported in binary, this just converts to plaintext
 			self.generation_log += line.decode()
@@ -871,12 +884,27 @@ class one_protein:
 						"--sensitive", #try harder to align distant matches
 						"--max-target-seqs", "0", #report all discovered alignments for each read
 						"--unal", "0", #report no unaligned reads
-						"--outfmt", "6", #output as tabular blast
+						"--outfmt", "6", 
+							"qseqid", 
+							"sseqid", 
+							"pident", 
+							"length", 
+							"mismatch", 
+							"gapopen", 
+							"qstart",
+							"qend",
+							"sstart", 
+							"send", 
+							"evalue", 
+							"bitscore", 
+							"qlen", 
+							"slen", #output as tabular blast
+						#"--outfmt", "6", #output as tabular blast
 						"--db", self.db, #use the shared database as the target
 						"--query", self.tagged, #align the tagged reads
 						"--out", self.aln_reads] #send to the pre-named file
-
-		subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
+		
+		process = subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
 		
 		diamond_err.close()
 		
@@ -932,15 +960,27 @@ class one_protein:
 						#"--sensitive", #try harder to align distant matches
 						#"-max_target_seqs", "1000", #report all discovered alignments for each read
 						#"--unal", "0", #report no unaligned reads
-						"-outfmt", "6", #output as tabular blast
+						"-outfmt", "'6", 
+							"qseqid", 
+							"sseqid", 
+							"pident", 
+							"length", 
+							"mismatch", 
+							"gapopen", 
+							"qstart",
+							"qend",
+							"sstart", 
+							"send", 
+							"evalue", 
+							"bitscore", 
+							"qlen", 
+							"slen'", #output as tabular blast
 						"-query", self.tagged, #align the tagged reads
 						"-out", self.aln_reads] #send to the pre-named file
 						
-		#print("")
-		#print(' '.join(align_command))
-		#print("")
 		
-		subprocess.call(align_command, stdout = err, stderr = subprocess.STDOUT)
+		process = subprocess.call(align_command, stdout = err, stderr = subprocess.STDOUT)
+		
 		
 		err.close()
 		
@@ -1027,7 +1067,7 @@ class one_protein:
 		
 		if self.final_read_count == 0:
 			print("")
-			print(self.base, "had no reads successfully align for alignment length", self.simlen[1])
+			print(self.base, "had no reads successfully align for alignment length", self.simlen[0])
 			print("This file and its generated reads will be removed.")
 			print("")
 			os.remove(self.aln_reads)
@@ -1093,31 +1133,6 @@ def build_project(parser, opts):
 		delrate = 0.01/19
 	
 	multiprocessing.freeze_support()
-	'''
-	threads = 1, 
-	dir = None,
-	#Read simulator arguments
-	coverage_depth = 20.0, 
-	snp_rate_per_base = 0.01, 
-	insertion_rate = 0.01/19.0, 
-	deletion_rate = 0.01/19.0, 
-	short = "90,100,110", 
-	standard = "180,200,220", 
-	long = "270,300,330", 
-	extra_long = "360,400,440"
-	
-	
-	mn = read_manager(threads = threads,
-					dir = project_directory,
-					coverage_depth = coverage,
-					snp_rate_per_base = snprate,
-					insertion_rate = insrate,
-					deletion_rate = delrate,
-					short = s,
-					standard = m,
-					long = l,
-					extra_long = xl)
-	'''	
 
 	mn = read_manager(threads = threads,
 					dir = project_directory,
