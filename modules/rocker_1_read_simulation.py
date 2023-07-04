@@ -388,16 +388,7 @@ class read_manager:
 		
 		for prot, l, cs, ce in zip(self.genomes_to_sim, self.genlens, self.coord_starts, self.coord_ends):
 			base = prot.split("/genomes/")	
-			
-			#cs, ce = self.extract_from_coords(coord)
-			'''
-			ps, pe = [], []
-			for row in self.per_ID_coords:
-				for gid in row:
-					ps.append(row[gid][0])
-					pe.append(row[gid][1])
-			'''
-			
+						
 			output = prot.split("/genomes/")
 			out_base = output[0] + "/"
 			read_name = output[1][:-6] + "_read_len_"
@@ -718,6 +709,20 @@ class one_protein:
 		else:
 			print(self.fastq, "could not be generated. ROCkOut cannot continue without this file.")
 		
+	def calculate_read_overlap(self, read_start, read_end, gene_start, gene_end):
+		read_positions = np.arange(read_start, read_end+1, dtype = np.int32)
+		gene_positions = np.arange(gene_start, gene_end+1, dtype = np.int32)
+		
+		gene_length = gene_end-gene_start + 1
+		read_length = read_end - read_start + 1
+		
+		overlap_size = len(np.intersect1d(read_positions, gene_positions))
+		
+		#percent_of_read = np.round(overlap_size/read_length, 2)
+		#percent_of_gene = np.round(overlap_size/gene_length, 2)
+		
+		return overlap_size
+		
 	def tag_reads(self):
 		pos_ct, prob_ct, off_ct = 0, 0, 0
 		
@@ -743,9 +748,11 @@ class one_protein:
 				#mn, mx = min(fr, to), max(fr, to)
 				mn, mx = min([fr, to]), max([fr, to])
 				
+				
 				#No interference with ROCker's split scheme.
 				genome_id = genome_id.replace(';', '_')
 				
+				overlap_bp = 0
 				
 				'''
 				There is an error in the tagging of appropriate coordinates here
@@ -778,6 +785,7 @@ class one_protein:
 					#if the gene ends before the read, mn will be > end
 					if mx >= start and mn <= end:
 						is_on_target = True
+						overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
 						
 				is_foreign_target = False
 				foreign_target_name = None
@@ -790,8 +798,8 @@ class one_protein:
 						if mx >= start and mn <= end:
 							is_foreign_target = True
 							foreign_target_name = name
-					
-				
+							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
+
 				is_probable_target = False
 				homol_name = None
 				if not is_on_target and not is_foreign_target: #Do NOT check already-flagged target or foreign target sequences
@@ -801,6 +809,10 @@ class one_protein:
 						if mx >= start and mn <= end:
 							is_probable_target = True
 							homol_name = name
+							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
+
+				
+				tagged_name = ';'.join([id, str(mn), str(mx), str(overlap_bp), comp, genome_id])
 				
 				#if (start_window - 1) == end_window:
 				if is_on_target:
@@ -820,25 +832,6 @@ class one_protein:
 				
 				print(printable_name, file = out)
 				
-				'''		
-				if id == "3557":
-					if "ENA|AP006840|AP006840.1" in printable_name:
-						print("")
-						print("")
-						print("gene coords are supposed to be [826226] [827293]")
-						print("")
-						print("readlen", int((self.simlen[0]+self.simlen[1])/2))
-						print("read_coords", mn, mx)
-						print("gene_coords", self.coord_starts, self.coord_ends)
-						print("start in gene", mx > start)
-						print("end in gene", mn < end)
-						print("is targ", is_on_target)
-						print("prob targ", is_probable_target)
-						print(printable_name)
-						print("")
-						print("")
-						print("")
-				'''
 				
 			else:
 				if not malformed:
@@ -898,7 +891,7 @@ class one_protein:
 							"evalue", 
 							"bitscore", 
 							"qlen", 
-							"slen", #output as tabular blast
+							"slen", 
 						#"--outfmt", "6", #output as tabular blast
 						"--db", self.db, #use the shared database as the target
 						"--query", self.tagged, #align the tagged reads
@@ -919,8 +912,23 @@ class one_protein:
 				print("Malformed read:", line.strip())
 				continue
 				
+			#Extract the additional features here
+			read_id_and_info = segs[0]
+			read_id_and_info = read_id_and_info.split(";")
+			overlap_bp = int(read_id_and_info[3])
+			qlen = int(segs[12])
+			percent_of_read_overlapping_the_gene = round(overlap_bp/qlen, 2)
+				
+			read_id_and_info = ";".join([read_id_and_info[0],
+										read_id_and_info[1],
+										read_id_and_info[2],
+										read_id_and_info[4],
+										read_id_and_info[5],
+										read_id_and_info[6]])
+				
 			#Only occurs when the two continues do not.
-			out.write(line)
+			#out.write()
+			print(read_id_and_info, *segs[1:], overlap_bp, percent_of_read_overlapping_the_gene, sep = "\t", file = out)
 		
 		out.close()
 		fh.close()
@@ -995,8 +1003,23 @@ class one_protein:
 				print("Malformed read:", line.strip())
 				continue
 				
+			#Extract the additional features here
+			read_id_and_info = segs[0]
+			read_id_and_info = read_id_and_info.split(";")
+			overlap_bp = int(read_id_and_info[3])
+			qlen = int(segs[12])
+			percent_of_read_overlapping_the_gene = round(overlap_bp/qlen, 2)
+				
+			read_id_and_info = ";".join([read_id_and_info[0],
+										read_id_and_info[1],
+										read_id_and_info[2],
+										read_id_and_info[4],
+										read_id_and_info[5],
+										read_id_and_info[6]])
+										
 			#Only occurs when the two continues do not.
-			out.write(line)
+			#out.write()
+			print(read_id_and_info, *segs[1:], overlap_bp, percent_of_read_overlapping_the_gene, sep = "\t", file = out)
 		
 		out.close()
 		fh.close()
