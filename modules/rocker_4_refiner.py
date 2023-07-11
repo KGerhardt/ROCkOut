@@ -11,7 +11,7 @@ from .pplacer.rocker_phylomap_build import phylomap_build
 
 import subprocess
 
-import pwlf
+#import pwlf
 
 #Revert skipping phylomap
 
@@ -133,7 +133,7 @@ class plot_data:
 				
 			#We need to hit both the main
 			#REVERT TODO
-			if False:
+			if True:
 				phylomap_build(pos = genomes_for_pplacer_pos,
 								neg = genomes_for_pplacer_neg,
 								output = out_path_base)	
