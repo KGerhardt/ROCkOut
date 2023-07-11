@@ -748,6 +748,7 @@ class one_protein:
 				genome_id = genome_id.replace(';', '_')
 				
 				overlap_bp = 0
+				pct_overlap = 0.0
 				
 				'''
 				There is an error in the tagging of appropriate coordinates here
@@ -781,6 +782,9 @@ class one_protein:
 					if mx >= start and mn <= end:
 						is_on_target = True
 						overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
+						qlen = mx-mn + 1
+						pct_overlap = 100*overlap_bp/qlen
+						pct_overlap = round(pct_overlap, 2)
 						
 				is_foreign_target = False
 				foreign_target_name = None
@@ -794,6 +798,10 @@ class one_protein:
 							is_foreign_target = True
 							foreign_target_name = name
 							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
+							qlen = mx-mn + 1
+							pct_overlap = 100*overlap_bp/qlen
+							pct_overlap = round(pct_overlap, 2)
+							
 
 				is_probable_target = False
 				homol_name = None
@@ -805,9 +813,11 @@ class one_protein:
 							is_probable_target = True
 							homol_name = name
 							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
-
+							qlen = mx-mn + 1
+							pct_overlap = 100*overlap_bp/qlen
+							pct_overlap = round(pct_overlap, 2)
 				
-				tagged_name = ';'.join([id, str(mn), str(mx), str(overlap_bp), comp, genome_id])
+				tagged_name = ';'.join([id, str(mn), str(mx), str(overlap_bp), str(pct_overlap), comp, genome_id])
 				
 				#if (start_window - 1) == end_window:
 				if is_on_target:
@@ -910,31 +920,24 @@ class one_protein:
 			#Extract the additional features here
 			read_id_and_info = segs[0]
 			read_id_and_info = read_id_and_info.split(";")
-			overlap_bp = int(read_id_and_info[3])
+			#overlap_bp = int(read_id_and_info[3])
+			overlap_bp = read_id_and_info[3]
+			percent_of_read_overlapping_the_gene = read_id_and_info[4]
+			
 			qlen = int(segs[12])
 			
-			percent_of_read_overlapping_the_gene = 100*overlap_bp/qlen
-			percent_of_read_overlapping_the_gene = round(percent_of_read_overlapping_the_gene, 2)
+			#percent_of_read_overlapping_the_gene = 100*overlap_bp/qlen
+			#percent_of_read_overlapping_the_gene = round(percent_of_read_overlapping_the_gene, 2)
 				
-				
+			'''	
 			read_id_and_info = ";".join([read_id_and_info[0],
 										read_id_and_info[1],
 										read_id_and_info[2],
 										read_id_and_info[4],
 										read_id_and_info[5],
 										read_id_and_info[6]])
-			
-			'''
-			It's possible for a read to have > 100% "overlap" if the alignment is gappy.
-			if percent_of_read_overlapping_the_gene > 100:
-				print("")
-				print("")
-				print("")
-				print("Hrm", overlap_bp, percent_of_read_overlapping_the_gene, read_id_and_info)
-				print("")
-				print("")
-				print("")
-			'''
+			'''							
+			read_id_and_info = ";".join(read_id_and_info)
 			
 			#Only occurs when the two continues do not.
 			#out.write()
