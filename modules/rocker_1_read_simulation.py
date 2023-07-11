@@ -710,16 +710,11 @@ class one_protein:
 			print(self.fastq, "could not be generated. ROCkOut cannot continue without this file.")
 		
 	def calculate_read_overlap(self, read_start, read_end, gene_start, gene_end):
-		read_positions = np.arange(read_start, read_end+1, dtype = np.int32)
-		gene_positions = np.arange(gene_start, gene_end+1, dtype = np.int32)
+		read_positions = np.arange(read_start, read_end, dtype = np.int32)
+		gene_positions = np.arange(gene_start, gene_end, dtype = np.int32)
 		
-		gene_length = gene_end-gene_start + 1
-		read_length = read_end - read_start + 1
-		
-		overlap_size = len(np.intersect1d(read_positions, gene_positions))
-		
-		#percent_of_read = np.round(overlap_size/read_length, 2)
-		#percent_of_gene = np.round(overlap_size/gene_length, 2)
+		#I'm not entirely sure this math is right...
+		overlap_size = len(np.intersect1d(read_positions, gene_positions)) + 1
 		
 		return overlap_size
 		
@@ -917,7 +912,10 @@ class one_protein:
 			read_id_and_info = read_id_and_info.split(";")
 			overlap_bp = int(read_id_and_info[3])
 			qlen = int(segs[12])
-			percent_of_read_overlapping_the_gene = round(overlap_bp/qlen, 2)
+			
+			percent_of_read_overlapping_the_gene = 100*overlap_bp/qlen
+			percent_of_read_overlapping_the_gene = round(percent_of_read_overlapping_the_gene, 2)
+				
 				
 			read_id_and_info = ";".join([read_id_and_info[0],
 										read_id_and_info[1],
@@ -925,7 +923,19 @@ class one_protein:
 										read_id_and_info[4],
 										read_id_and_info[5],
 										read_id_and_info[6]])
-				
+			
+			'''
+			It's possible for a read to have > 100% "overlap" if the alignment is gappy.
+			if percent_of_read_overlapping_the_gene > 100:
+				print("")
+				print("")
+				print("")
+				print("Hrm", overlap_bp, percent_of_read_overlapping_the_gene, read_id_and_info)
+				print("")
+				print("")
+				print("")
+			'''
+			
 			#Only occurs when the two continues do not.
 			#out.write()
 			print(read_id_and_info, *segs[1:], overlap_bp, percent_of_read_overlapping_the_gene, sep = "\t", file = out)

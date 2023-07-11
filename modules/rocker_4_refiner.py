@@ -11,6 +11,10 @@ from .pplacer.rocker_phylomap_build import phylomap_build
 
 import subprocess
 
+import pwlf
+
+#Revert skipping phylomap
+
 def import_rocker_project(project_directory):
 	manager = project_manager(project_directory)
 	manager.parse_project_directory()
@@ -53,13 +57,23 @@ class plot_data:
 		self.max_position = None
 		
 		self.senspec = None
+		self.senspec_id = None
+		self.senspec_aln = None
+		self.senspec_id_aln = None
 
 		
 		#How many AA will be considered at a time when calculating ROC - this a sliding window
 		self.window_size = 20
+		self.aln_window_size = 10.0
 		#How fine-grain will the y-axis be? 0.5 bitscore windows by default
 		#Note: it's entirely possible to calculate the ROC without binning, but gains are negligible and it's slower.
 		self.resolution = 0.5
+		self.resolution_id = 0.5
+		self.resolution_aln = 2.5
+		
+		#I don't think this is actually needed.
+		self.minimum_overlap_for_positive_label = 90
+		
 		self.models = None
 		self.aln_len_models = None
 		self.pct_id_models = None
@@ -94,8 +108,6 @@ class plot_data:
 
 			self.load_reads()
 			
-			#self.load_from_index()
-			
 			self.successful_load = True
 			print("Project loaded!")
 			
@@ -120,9 +132,11 @@ class plot_data:
 				genomes_for_pplacer_neg = None
 				
 			#We need to hit both the main
-			phylomap_build(pos = genomes_for_pplacer_pos,
-							neg = genomes_for_pplacer_neg,
-							output = out_path_base)	
+			#REVERT TODO
+			if False:
+				phylomap_build(pos = genomes_for_pplacer_pos,
+								neg = genomes_for_pplacer_neg,
+								output = out_path_base)	
 		'''
 		except:
 			print("Couldn't parse directory!")
@@ -136,7 +150,6 @@ class plot_data:
 		fh = open(self.manager.mult_aln_files['aln_aa'])
 		for line in fh:
 			if line.startswith(">"):
-			
 				if len(current_seq) > 0:
 					self.offsets[current_prot] = current_seq
 					current_seq = ""
@@ -170,11 +183,7 @@ class plot_data:
 		self.targets_for_writeout = ""
 		
 		self.valid_origin_proteins = []
-		#self.invalid_origin_genomes = []
-		
-		#copy to outputs
-		
-		
+
 		self.manager.parse_coords()
 		for prot in self.manager.targets:
 			for file in self.manager.targets[prot]:				
@@ -266,6 +275,10 @@ class plot_data:
 					pct_id = float(segs[2])
 					alignment_length = int(segs[3])
 					
+					qlen = int(segs[12]) / 3
+					
+					pct_aln = round(alignment_length/qlen * 100, 2)
+					
 					double_key = alignments + ", " + title
 					
 					data = (read_id, 
@@ -279,7 +292,7 @@ class plot_data:
 							end, 
 							bitscore,
 							pct_id,
-							alignment_length,
+							pct_aln,
 							double_key,)
 										
 					if read_id not in read_best_hits[avg_read_length]:
@@ -357,6 +370,10 @@ class plot_data:
 					pct_id = float(segs[2])
 					alignment_length = int(segs[3])
 					
+					qlen = int(segs[12]) / 3
+					
+					pct_aln = round(alignment_length/qlen * 100, 2)
+					
 					double_key = alignments + ", " + title
 					
 					data = (read_id, 
@@ -370,7 +387,7 @@ class plot_data:
 							end, 
 							bitscore,
 							pct_id,
-							alignment_length,
+							pct_aln,
 							double_key,)
 					
 					#data = (avg_read_length, alignments, title, read_classifier, alignment_target, midpt, start, end, bitscore, )
@@ -412,11 +429,13 @@ class plot_data:
 			
 			self.loaded_data[rl].columns = ["read_id", "read_length", "parent", "protein", 
 											"classifier", "target", "midpoint", "start", "end", 
-											"bitscore", "pct_id", "aln_len", "UniProt ID, protein name"]
+											"bitscore", "pct_id", "pct_aln", "UniProt ID, protein name"]
 			
-			#print(self.loaded_data[rl])
 			#This should probably be reimplemented up above.
 			#clean the dataframes to best hit by read - this takes care of repeat genome simulations
+			self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl]["pct_aln"] <= 100.0]
+			self.loaded_data[rl] = self.loaded_data[rl].reset_index(drop=True)
+			
 			self.loaded_data[rl] = self.loaded_data[rl].loc[self.loaded_data[rl].reset_index().groupby(['read_id'])['bitscore'].idxmax()]
 			
 			#Add max as needed.
@@ -434,21 +453,24 @@ class plot_data:
 		self.active_prot_dict = {}
 		for prot in self.active_proteins:
 			self.active_prot_dict[prot] = True
-		
-	def calculate_youden(self, current_window_tgt, current_window_con):		
+			
+		for rl in self.loaded_data:
+			self.loaded_data[rl] = self.loaded_data[rl][self.loaded_data[rl]["protein"].isin(self.active_proteins)]
+			self.loaded_data[rl] = self.loaded_data[rl].reset_index(drop=True)
+			
+			self.loaded_data[rl].to_csv(os.path.normpath(self.project_dir+"/"+str(rl)+".reads.txt"), sep = "\t")
+				
+	def calculate_youden(self, current_window_tgt, current_window_con, all_cuts = False):	
 		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
 		max_by_bitscore_tgt = np.amax(current_window_tgt, axis = 1)
 		max_by_bitscore_con = np.amax(current_window_con, axis = 1)
 		
-		#The numbers of reads falling into each bitscore window, descending.
-		#If I flip these matrices rows, find youden cuts, then flip the cut indices, does that work?
-		#print(current_window_tgt)
-		#print(current_window_con)
-		#print("")
-		
 		#Cumulative sums means that the max is always found at the final position in the array.
 		tgt_max = max_by_bitscore_tgt[max_by_bitscore_tgt.shape[0]-1]
 		con_max = max_by_bitscore_con[max_by_bitscore_con.shape[0]-1]
+		
+		#print(max_by_bitscore_tgt)
+		#print(max_by_bitscore_con)
 		
 		#We care about maximizing the Youden index, per the original ROCker paper
 		#Youden = sensitivity + specificity - 1
@@ -460,7 +482,7 @@ class plot_data:
 		#TN = con_max - max_by_bitscore_con
 		
 		#these are the two from the above that we don't already have.
-		#fn = np.subtract(tgt_max, max_by_bitscore_tgt)
+		#fn = np.subtract(tgt_max, max_by_bitscore_tgt)	
 		tn = np.subtract(con_max, max_by_bitscore_con)
 		
 		total_obs = tgt_max + con_max
@@ -481,28 +503,111 @@ class plot_data:
 		#Argmax returns the first occurrence is there is a tie
 		#this equivalent to the highest bitscore among ties, usually seen where Youden = 1
 		cutoff = np.argmax(Youden_by_bs)
-			
+		
 		if np.isnan(Youden_by_bs[cutoff]):
 			#Natural return is 0 when there's no conf, but we actually want to choose
 			#the min bitscore in this case, which is the last index.
 			cutoff = max_by_bitscore_tgt.shape[0]-1
+			if all_cuts:
+				cutoff = np.array(cutoff)
+		else:
+			#print("Orig", cutoff)
+			#Find the median value of tied matches.
+			max_youden = Youden_by_bs[cutoff]
+			ties = np.where(Youden_by_bs == max_youden)
+			cutoff = int(np.median(ties))
+			
+			if all_cuts:
+				cutoff = ties[0]
+				
+			#print("new cut", cutoff)
+			
 			
 		return cutoff, accuracy, sensitivity, specificity
+			
+	def prep_bins(self, vert):
+		per_position_data = {"Target" : {}, "Confounder": {}}
+		for vbin in vert:
+			#The range is always 0:max_pos
+			per_position_data["Target"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
+			per_position_data["Confounder"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
 		
+		return per_position_data
+		
+	def prep_bins_2d(self, vert_id, vert_aln):
+		'''
+		per_position_data = {}
+		for vbin in vert_aln:
+			per_position_data[vbin] = {"Target" : {}, "Confounder": {}}
+			for vbin2 in vert_id:
+				#The range is always 0:max_pos
+				per_position_data[vbin]["Target"][vbin2] = np.zeros(self.multiple_align_size, dtype = np.int32)
+				per_position_data[vbin]["Confounder"][vbin2] = np.zeros(self.multiple_align_size, dtype = np.int32)
+		'''
+
+		per_position_data = {"Target":{}, "Confounder":{}}
+		for id in vert_id:
+			per_position_data["Target"][id] = np.zeros(len(vert_aln), dtype = np.int32)
+			per_position_data["Confounder"][id] = np.zeros(len(vert_aln), dtype = np.int32)
+			
+		return per_position_data
+		
+	def convert_bins_to_dfs(self, vert_bins, per_position_data):
+		#Need to join the disparate tabs into 2D arrs for computation.
+		collected_target_data = []
+		collected_confounder_data = []
+		
+		desc_bitscores = sorted(vert_bins, reverse=True)
+		
+		for vbin in desc_bitscores:
+			collected_target_data.append(per_position_data["Target"][vbin])
+			per_position_data["Target"][vbin] = None
+			collected_confounder_data.append(per_position_data["Confounder"][vbin])
+			per_position_data["Confounder"][vbin] = None
+		
+		collected_target_data = np.vstack(collected_target_data)
+		collected_confounder_data = np.vstack(collected_confounder_data)
+		
+		#Column-wise cumulative sum of bases at each pos. in the protein, split by tgt vs confounder
+		collected_target_data = np.cumsum(collected_target_data, axis = 0)
+		collected_confounder_data = np.cumsum(collected_confounder_data, axis = 0)
+		
+		return collected_target_data, collected_confounder_data, desc_bitscores
+	
+	#def convert_bins_to_dfs_2d(self, id_bins, id_aln):
+	def convert_bins_to_dfs_2d(self, id_aln):
+		'''
+		for aln in sorted(list(id_aln.keys())):
+			target, confounder, desc_ids = self.convert_bins_to_dfs(id_bins, id_aln[aln])
+			id_aln[aln] = {"target":target, "confounder":confounder, "ids":desc_ids}
+			#collected_target_data, collected_confounder_data, desc_bitscores
+		'''
+		finished_tgt, finished_con = [], []
+		for id in sorted(list(id_aln["Target"].keys())): #Keys are the same for tgt, conf
+			finished_tgt.append(id_aln["Target"][id])
+			finished_con.append(id_aln["Confounder"][id])
+		
+		finished_tgt = np.vstack(finished_tgt)
+		finished_con = np.vstack(finished_con)
+		
+		#return id_aln
+		return finished_tgt, finished_con
+	
 	def calculate_roc_curves(self):		
-		#Ceiling of the number of full windows.
-		half_window = int(self.window_size/2)
-		
 		def find_nearest(array, value):
-			array = np.asarray(array)
+			#array = np.asarray(array)
 			idx = (np.abs(array - value)).argmin()
-			return array[idx]
+			#return array[idx].astype(np.int32)
+			return np.int32(idx)
 			
 		self.models = []
 		self.aln_len_models = []
 		self.pct_id_models = []
 		
 		self.senspec = {}
+		self.senspec_id = {}
+		self.senspec_aln = {}
+		self.senspec_id_aln = {}
 
 		#Separate the data into groups of mean read lengths.
 		#read_lengths = list(set(current_data["read_length"]))
@@ -512,74 +617,119 @@ class plot_data:
 		#and use the three models as an ensemble for the filter step.
 		
 		for rl in self.loaded_data:
+			print("Read length", rl)
 			#Since each model is calculated at one read length and we interpolate read lengths between them,
 			#We select the data associated with each readlength and get the model for it.
 			one_length = self.loaded_data[rl].copy()
-			#print(one_length)
 			
 			#Select out active prots
-			one_length = one_length.loc[one_length['protein'].isin(self.active_proteins)]
+			#Not neneded thanks to above filter
+			#one_length = one_length.loc[one_length['protein'].isin(self.active_proteins)]
 			
 			min_bitscore = min(one_length["bitscore"])
 			max_bitscore = max(one_length["bitscore"])
 			
-			#min_aln_len = min(one_length[""])
-			#This could be repeated for aln length, pct ID for more models...
+			min_aln = min(one_length["pct_aln"])
+			max_aln = max(one_length["pct_aln"])
+			
+			min_pct = min(one_length["pct_id"])
+			max_pct = max(one_length["pct_id"])
 			
 			#Determine the bin boundaries
 			vert_bins = np.arange(min_bitscore, max_bitscore, self.resolution)
+			vert_pct = np.round(np.arange(min_pct, max_pct, self.resolution_id), 2)
+			vert_aln = np.round(np.arange(min_aln, 100, self.resolution_aln), 2)
 			
 			#Set up data repo - rows corresp. to each vertical bin and are the length of the protein, 
 			#Also divided by target vs. confounder.
-			per_position_data = {"Target" : {}, "Confounder": {}}
-			for vbin in vert_bins:
-				#The range is always 0:max_pos
-				#per_position_data["Target"][vbin] = np.zeros(self.max_position, dtype = np.int32)
-				per_position_data["Target"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
-				#per_position_data["Confounder"][vbin] = np.zeros(self.max_position, dtype = np.int32)
-				per_position_data["Confounder"][vbin] = np.zeros(self.multiple_align_size, dtype = np.int32)
+			per_position_data = self.prep_bins(vert_bins)
+			per_position_data_id = self.prep_bins(vert_pct)
+			per_position_data_aln = self.prep_bins(vert_aln)
 			
+			id_aln = self.prep_bins_2d(vert_pct, vert_aln)
+										
 			#Iterate through the reads and fill the appropriate row/columns
-			for classifier, s, e, bs, targ in zip(one_length["classifier"], one_length["start"], one_length["end"], one_length["bitscore"], one_length["target"]):
+			for classifier, s, e, bs, targ, id, aln in zip(one_length["classifier"], 
+												one_length["start"], 
+												one_length["end"], 
+												one_length["bitscore"], 
+												one_length["target"],
+												one_length["pct_id"],
+												one_length["pct_aln"]):
 				
 				#TODO adjust the position of the read placements
-				falls_into = find_nearest(vert_bins, bs)
 				
+				bs_index = find_nearest(vert_bins, bs)
+				id_index = find_nearest(vert_pct, id)
+				aln_index = find_nearest(vert_aln, aln)
+								
+				falls_into = vert_bins[bs_index]
+				falls_into_id = vert_pct[id_index]
+				falls_into_aln = vert_aln[aln_index]
+				
+				#print(falls_into, falls_into_id, falls_into_aln)
+				
+				#Consistent for all bins
 				lowhi = np.arange(s-1, e-1)
 				fills_bins = self.offsets[targ][lowhi] + lowhi
-				#print(targ)
-				#print(s, e)
-				#print(fills_bins.shape)
-				#fills_bins = fills_bins[np.arange(s, e)]
-
-				#print("")
 				
 				if classifier == "Target":
 					#per_position_data["Target"][falls_into][s:e] += 1
 					per_position_data["Target"][falls_into][fills_bins] += 1
+					per_position_data_id["Target"][falls_into_id][fills_bins] += 1
+					per_position_data_aln["Target"][falls_into_aln][fills_bins] += 1
+					#id_aln[falls_into_aln]["Target"][falls_into_id][fills_bins] += 1
+					id_aln["Target"][falls_into_id][aln_index] += 1
 				else:
 					#per_position_data["Confounder"][falls_into][s:e] += 1
 					per_position_data["Confounder"][falls_into][fills_bins] += 1
+					per_position_data_id["Confounder"][falls_into_id][fills_bins] += 1
+					per_position_data_aln["Confounder"][falls_into_aln][fills_bins] += 1
+					#id_aln[falls_into_aln]["Confounder"][falls_into_id][fills_bins] += 1
+					id_aln["Confounder"][falls_into_id][aln_index] += 1
+						
+			id_aln_tgt, id_aln_con, desc_ids = self.convert_bins_to_dfs(vert_pct, id_aln)
 			
-			#Need to join the disparate tabs into 2D arrs for computation.
-			collected_target_data = []
-			collected_confounder_data = []
+			collected_target_data, collected_confounder_data, desc_bitscores = self.convert_bins_to_dfs(vert_bins, per_position_data)
+			collected_target_data_id, collected_confounder_data_id, desc_ids = self.convert_bins_to_dfs(vert_pct, per_position_data_id)
+			collected_target_data_aln, collected_confounder_data_aln, desc_alns = self.convert_bins_to_dfs(vert_aln, per_position_data_aln)
 			
-			desc_bitscores = sorted(vert_bins, reverse=True)
 			
-			for vbin in desc_bitscores:
-				collected_target_data.append(per_position_data["Target"][vbin])
-				per_position_data["Target"][vbin] = None
-				collected_confounder_data.append(per_position_data["Confounder"][vbin])
-				per_position_data["Confounder"][vbin] = None
+			if rl not in self.senspec:
+				self.senspec[rl] = []
+				self.senspec_id[rl] = []
+				self.senspec_aln[rl] = []
+				self.senspec_id_aln[rl] = []
 			
-			collected_target_data = np.vstack(collected_target_data)
-			collected_confounder_data = np.vstack(collected_confounder_data)
+			aln_cuts = []
+			id_cuts = []
+			half_aln_window = int(self.aln_window_size/self.resolution_aln)
+			#We treat reads with >100% aln differently.
+			acceptable_aln = vert_aln[vert_aln <= 100.0]
+			max_aln = len(acceptable_aln)
+			for window_midpoint in range(0, len(acceptable_aln)):
+				#Get sliding window start, end indices; truncate at edges.
+				window_start = window_midpoint-half_aln_window
+				if window_start < 0:
+					window_start = 0
+				window_end = window_midpoint + half_aln_window
+				if window_end > max_aln:
+					window_end = max_aln
+								
+				current_window_tgt = id_aln_tgt[:, np.arange(window_start, window_end)]
+				current_window_con = id_aln_con[:, np.arange(window_start, window_end)]
+				cutoffs, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con, all_cuts = True)
+				
+				print("Cuts", cutoffs)
+				for cut in cutoffs:
+					self.senspec_id_aln[rl].append((vert_aln[window_midpoint], desc_ids[cut], accuracy[cut], sensitivity[cut], specificity[cut],))
 			
-			#Column-wise cumulative sum of bases at each pos. in the protein, split by tgt vs confounder
-			collected_target_data = np.cumsum(collected_target_data, axis = 0)
-			collected_confounder_data = np.cumsum(collected_confounder_data, axis = 0)
 			
+			
+			
+			
+			#Ceiling of the number of full windows.
+			half_window = int(self.window_size/2)
 			#Okay, data's collected, so we select windows and calc ROC from those.
 			#for window_midpoint in range(0, self.max_position):
 			for window_midpoint in range(0, self.multiple_align_size):
@@ -591,26 +741,42 @@ class plot_data:
 				if window_end > self.multiple_align_size:
 					window_end = self.multiple_align_size
 				
+				#Bitscore
 				#Select columns matching the window from cum sums
 				current_window_tgt = collected_target_data[:, np.arange(window_start, window_end)]
 				current_window_con = collected_confounder_data[:, np.arange(window_start, window_end)]
+								
+				#In-group cutoffs
+				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
+				cutoff_bitscore = desc_bitscores[cutoff]
+				self.senspec[rl].append((window_midpoint, cutoff_bitscore, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
+
+				#Percent identity
+				#Select columns matching the window from cum sums
+				current_window_tgt = collected_target_data_id[:, np.arange(window_start, window_end)]
+				current_window_con = collected_confounder_data_id[:, np.arange(window_start, window_end)]
 				
 				#In-group cutoffs
 				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
+				cutoff_id = desc_ids[cutoff]
+				self.senspec_id[rl].append((window_midpoint, cutoff_id, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
 				
-				if rl not in self.senspec:
-					self.senspec[rl] = []
-					
-				self.senspec[rl].append((window_midpoint, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
+				#Alignment length
+				#Select columns matching the window from cum sums
+				current_window_tgt = collected_target_data_aln[:, np.arange(window_start, window_end)]
+				current_window_con = collected_confounder_data_aln[:, np.arange(window_start, window_end)]
+				
+				#In-group cutoffs
+				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
+				cutoff_aln = desc_alns[cutoff]
+				self.senspec_aln[rl].append((window_midpoint, cutoff_aln, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
 
-				cutoff_bitscore = desc_bitscores[cutoff]
-				
-				data = (rl, window_midpoint, cutoff_bitscore,)
+				data = (rl, window_midpoint, cutoff_bitscore, cutoff_id, cutoff_aln,)
 				
 				self.models.append(data)
 				
 		self.models = pd.DataFrame(self.models)
-		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff"]
+		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff", "percent_id_cutoff", "percent_aln_cutoff"]
 		
 	def craft_plot(self):
 		if self.loaded_data is not None:
@@ -734,7 +900,7 @@ class plot_data:
 		if self.senspec is not None:
 			for rl in self.senspec:
 				one_data = pd.DataFrame(self.senspec[rl])
-				one_data.columns = ["midpoint", "acc", "sens", "spec"]
+				one_data.columns = ["midpoint", "bitscore_cutoff", "acc", "sens", "spec"]
 				one_data = one_data.melt(id_vars = ["midpoint"], var_name = 'Measure')
 				
 				fig = px.line(one_data, x="midpoint", y ="value", color = 'Measure')
@@ -789,12 +955,35 @@ class plot_data:
 
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity.txt")
 		sp = open(output_senspec, "w")
-		print("read_length", "window_midpt", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
+		print("read_length", "window_midpt", "cutoff_bitscore", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
 		for rl in self.senspec:
 			for row in self.senspec[rl]:
-				print(rl, row[0], row[1], row[2], row[3], sep = "\t", file = sp)
+				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
 		sp.close()
 		
+		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_id.txt")
+		sp = open(output_senspec, "w")
+		print("read_length", "window_midpt", "cutoff_id", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
+		for rl in self.senspec_id:
+			for row in self.senspec_id[rl]:
+				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
+		sp.close()
+		
+		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_aln.txt")
+		sp = open(output_senspec, "w")
+		print("read_length", "window_midpt", "cutoff_aln", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
+		for rl in self.senspec_aln:
+			for row in self.senspec_aln[rl]:
+				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
+		sp.close()
+		
+		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_id_aln.txt")
+		sp = open(output_senspec, "w")
+		print("read_length", "pct_aln", "cutoff_id", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
+		for rl in self.senspec_aln:
+			for row in self.senspec_id_aln[rl]:
+				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
+		sp.close()
 		
 		fh = open(self.positive_targets_file, "w")
 		fh.write(self.targets_for_writeout)
@@ -808,8 +997,8 @@ class plot_data:
 			print("Couldn't make DIAMOND database of positive targets!")
 		
 		try:
-			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
 			makedb = ["makeblastdb", "-in", self.positive_targets_file, "-parse_seqids", "-dbtype", "prot", "-out", self.positive_targets_blast]
+			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
 			print(" ".join(makedb))
 			print("Building BLAST database for positive targets. Log information will follow.")
 			subprocess.call(makedb)

@@ -191,6 +191,8 @@ def one_read_int(f, p, n, do_bh = True, valid_tgts = None, readlen_file = None):
 			evalue = float(segs[10])
 			pct_id = float(segs[2])
 			
+			overlap_pct = float(segs[14])
+			
 			aln_len = int(segs[3])
 			qlen = int(segs[12]) / 3 #bp to AA lengths
 			
@@ -221,7 +223,7 @@ def one_read_int(f, p, n, do_bh = True, valid_tgts = None, readlen_file = None):
 						label = "Negative"
 					#segs[-1] = "source_protein="+start_stop_name[2]+";Negative"
 
-			read_results[read_name] = [read_name, target, label, alnstart, alnend, bitscore, evalue, pct_id, pct_aln]
+			read_results[read_name] = [read_name, target, label, alnstart, alnend, bitscore, evalue, pct_id, pct_aln, overlap_pct]
 	
 	'''
 	#I don't think importing the read lengths is necessarily worth it for the filter setup. Using the sim readlen is OK I think.

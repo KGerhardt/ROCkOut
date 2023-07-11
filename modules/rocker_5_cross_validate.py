@@ -18,13 +18,16 @@ pd.options.mode.chained_assignment = None
 np.seterr(all="ignore")
 	
 class cross_validator:
-	def __init__(self, dir):
+	def __init__(self, dir, outdir = None):
 		self.prjdir = dir
 		self.manager = None
 		self.data = None
 		self.basename = os.path.basename(os.path.normpath(dir))
 		
-		self.outdir = os.path.normpath(self.prjdir + "/final_outputs/cross_validation/")
+		if outdir is None:
+			outdir = dir
+			
+		self.outdir = os.path.normpath(outdir + "/final_outputs/cross_validation/")
 		if not os.path.exists(self.outdir):
 			os.makedirs(self.outdir, exist_ok = True)
 		
@@ -53,8 +56,9 @@ class cross_validator:
 		self.testing_data_asp_staramr = {}
 		self.test_index = 1
 		
+		self.minimum_overlap_for_target = 0.9
 		
-	
+		
 	def ready_inputs(self):
 		self.data, self.manager = output_reads(self.prjdir, external = False)
 		dataframes = {}
@@ -73,8 +77,11 @@ class cross_validator:
 		
 		for rl in dataframes:
 			dataframes[rl] = pd.DataFrame(dataframes[rl])
+			
 			#[read_name, target, label, start, end, bitscore, pct_id, ]
-			dataframes[rl].columns = ["read_id","target", "classifier", "start", "end", "bitscore", "evalue", "pct_id", "pct_aln"]
+			dataframes[rl].columns = ["read_id","target", "classifier", "start", "end", "bitscore", "evalue", "pct_id", "pct_aln", "overlap_pct"]
+			updates = ((dataframes[rl]["classifier"] == "Positive") & (dataframes[rl]["overlap_pct"] < self.minimum_overlap_for_target))
+			dataframes[rl].at[updates, "classifier"] = "Insufficient_overlap"
 		
 		self.data = dataframes
 		
@@ -138,6 +145,12 @@ class cross_validator:
 		self.valid_origin_proteins = set(self.valid_origin_proteins)
 		#self.invalid_origin_genomes = set(self.invalid_origin_genomes)
 		
+		#Filter data to acceptable targets
+		for rl in self.data:
+			self.data[rl] = self.data[rl][self.data[rl]["target"].isin(self.valid_targets)]
+			self.data[rl] = self.data[rl].reset_index(drop=True)
+			#print(self.data[rl])
+		
 	def find_filter(self):
 		if os.path.exists(self.prjdir):
 			filter_path = os.path.normpath(self.prjdir + "/final_outputs/model/ROCkOut_Filter.txt")
@@ -146,6 +159,7 @@ class cross_validator:
 				#Only set this to not None if the file can be found.
 				self.filter_file = filter_path
 			else:
+				self.filter_file = None
 				print("Project appears incomplete.")
 		else:
 			print("Project not found.")
@@ -200,6 +214,7 @@ class cross_validator:
 			row += 1
 			
 		self.filter_matrix = mat_to_dict
+		
 		
 	#Maybe going through the raws and collecting the readlengths first would be good?
 	def run_filter_blast_tabular(self, raw, aln, passing, failing, raw_filt):
@@ -341,7 +356,7 @@ class cross_validator:
 		specificity = confmat["tn"] / (confmat["fp"] + confmat["tn"])
 		
 		return accuracy, sensitivity, specificity
-	
+		
 	def prepare_subsamples(self):
 	
 		for rl in self.data:
@@ -351,9 +366,12 @@ class cross_validator:
 			self.testing_data_asp_e20[rl] = {}
 			self.testing_data_asp_e30[rl] = {}
 			self.testing_data_asp_staramr[rl] = {}
+			
+			
 		
 			self.test_index = 1
 			for i in range(0, self.num_subsamps):
+			
 				print("Read length", rl, "subsample", i+1, "of", self.num_subsamps)
 				#Proportionally sample the original data based on the classifier labels: Positive, Negative, Non_Target
 				train = self.data[rl].groupby('classifier').apply(pd.DataFrame.sample, frac=self.subsample_fraction).reset_index(level='classifier', drop=True)
@@ -363,17 +381,18 @@ class cross_validator:
 				train.to_csv(train_out, sep = "\t", index = False)
 				
 				cutoffs = self.calculate_roc_curves(train, rl)
+				cutoff_df = {"pos_in_multiple_aln":np.arange(1, len(cutoffs)+1), "cutoff_bitscore":cutoffs}
+				cutoff_df = pd.DataFrame.from_dict(cutoff_df)
+				cut_out = os.path.normpath(self.outdir + "/" + self.basename+"_read_len_"+str(rl)+"_train_group_"+str(self.test_index)+"_rockout_cutoffs.txt")
+				cutoff_df.to_csv(cut_out, sep = "\t", index = False)
 
 				#Select all the indices from the original dataframe NOT in the training list
 				mask = np.full(len(self.data[rl]), fill_value = True, dtype = bool)
 				mask[train.index] = False
 				test = self.data[rl][mask]
 				
-				
 				test_out = os.path.normpath(self.outdir + "/" +self.basename+"_read_len_"+str(rl)+"_test_group_"+str(self.test_index)+".txt")
-				#Write test data out
-				test.to_csv(test_out, sep = "\t", index = False)
-				self.test_index += 1
+
 				
 				#Confusion matrix rows
 				#tp = np.zeros(cutoffs.shape[0], dtype = np.int32)
@@ -388,11 +407,23 @@ class cross_validator:
 				id_cut = 90.0
 				
 				rocker_conf = self.confmat_dict(cutoffs.shape[0])
+				rocker_conf_med = self.confmat_dict(cutoffs.shape[0])
+				rocker_conf_len = self.confmat_dict(cutoffs.shape[0])
 				eval_10e3_conf = self.confmat_dict(cutoffs.shape[0])
 				eval_10e10_conf = self.confmat_dict(cutoffs.shape[0])
 				eval_10e20_conf = self.confmat_dict(cutoffs.shape[0])
 				eval_10e30_conf = self.confmat_dict(cutoffs.shape[0])
 				staramr_conf = self.confmat_dict(cutoffs.shape[0])
+				
+				rocker_labels = []
+				rocker_staradj_labels = []
+				rocker_staradj_labels_lenient = []
+				e3_labels = []
+				e10_labels = []
+				e20_labels = []
+				e30_labels = []
+				staramr_labels = []
+				multiple_aln_midpoints = []
 				
 				#Iterate over rows in the testing data and filter
 				for real_label, start, end, alignment_target, bitscore, evalue, pct_aln, pct_id in zip(test["classifier"],
@@ -404,86 +435,150 @@ class cross_validator:
 								test["pct_aln"],
 								test["pct_id"]):
 					
-					
 					lowhi = np.arange(start-1, end-1)
 					these_offsets = self.offsets[alignment_target]
 					ma_corrected_positions = these_offsets[lowhi] + lowhi
 					
-					#These would be filtered on the basis of not aligning to a target, so their offsets don't reall get considerd.
-					if alignment_target not in self.valid_targets:
-						if real_label == "Positive":
-							fn[ma_corrected_positions] += 1
-						else:
-							tn[ma_corrected_positions] += 1
+					med_pos = int(np.median(ma_corrected_positions))
 					
-					else:
-						model_cutoffs = cutoffs[ma_corrected_positions]
-						
-						diffs = np.subtract(bitscore, cutoffs)
-						
-						decider = np.mean(diffs)
-						
-						if real_label == "Positive":
-							if evalue < evals[0]:
-								eval_10e3_conf["tp"][ma_corrected_positions] += 1
-							else:
-								eval_10e3_conf["fn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[1]:
-								eval_10e10_conf["tp"][ma_corrected_positions] += 1
-							else:
-								eval_10e10_conf["fn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[2]:
-								eval_10e20_conf["tp"][ma_corrected_positions] += 1
-							else:
-								eval_10e20_conf["fn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[3]:
-								eval_10e30_conf["tp"][ma_corrected_positions] += 1
-							else:
-								eval_10e30_conf["fn"][ma_corrected_positions] += 1
-								
-							if pct_aln > aln_cut and pct_id > id_cut:
-								staramr_conf["tp"][ma_corrected_positions] += 1
-							else:
-								staramr_conf["fn"][ma_corrected_positions] += 1
-							
-							if decider > 0:
-								rocker_conf["tp"][ma_corrected_positions] += 1
-							else:
-								rocker_conf["fn"][ma_corrected_positions] += 1
+					multiple_aln_midpoints.append(med_pos)
+					
+					model_cutoffs = cutoffs[ma_corrected_positions]
+					
+					
+					med_cutoff = cutoffs[med_pos]
+					
+					diffs = np.subtract(bitscore, cutoffs)
+					
+					decider = np.mean(diffs)
+					decider_med = bitscore - med_cutoff
+					decider_lenient = np.sum(diffs > 0) - len(diffs)/2
+					
+					
+					if real_label == "Positive":
+						if evalue < evals[0]:
+							eval_10e3_conf["tp"][ma_corrected_positions] += 1
+							e3_labels.append("true_positive")
 						else:
-							if evalue < evals[0]:
-								eval_10e3_conf["fp"][ma_corrected_positions] += 1
-							else:
-								eval_10e3_conf["tn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[1]:
-								eval_10e10_conf["fp"][ma_corrected_positions] += 1
-							else:
-								eval_10e10_conf["tn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[2]:
-								eval_10e20_conf["fp"][ma_corrected_positions] += 1
-							else:
-								eval_10e20_conf["tn"][ma_corrected_positions] += 1
-								
-							if evalue < evals[3]:
-								eval_10e30_conf["fp"][ma_corrected_positions] += 1
-							else:
-								eval_10e30_conf["tn"][ma_corrected_positions] += 1
-								
-							if pct_aln > aln_cut and pct_id > id_cut:
-								staramr_conf["fp"][ma_corrected_positions] += 1
-							else:
-								staramr_conf["tn"][ma_corrected_positions] += 1
+							eval_10e3_conf["fn"][ma_corrected_positions] += 1
+							e3_labels.append("false_negative")
+							
+						if evalue < evals[1]:
+							eval_10e10_conf["tp"][ma_corrected_positions] += 1
+							e10_labels.append("true_positive")
+						else:
+							eval_10e10_conf["fn"][ma_corrected_positions] += 1
+							e10_labels.append("false_negative")
+							
+						if evalue < evals[2]:
+							eval_10e20_conf["tp"][ma_corrected_positions] += 1
+							e20_labels.append("true_positive")
+						else:
+							eval_10e20_conf["fn"][ma_corrected_positions] += 1
+							e20_labels.append("false_negative")
+							
+						if evalue < evals[3]:
+							eval_10e30_conf["tp"][ma_corrected_positions] += 1
+							e30_labels.append("true_positive")
+							
+						else:
+							eval_10e30_conf["fn"][ma_corrected_positions] += 1
+							e30_labels.append("false_negative")
+							
+						if pct_aln > aln_cut and pct_id > id_cut:
+							staramr_conf["tp"][ma_corrected_positions] += 1
+							staramr_labels.append("true_positive")
+							
+							
+						else:
+							staramr_conf["fn"][ma_corrected_positions] += 1
+							staramr_labels.append("false_negative")
 						
-							if decider > 0:
-								rocker_conf["fp"][ma_corrected_positions] += 1
-							else:
-								rocker_conf["tn"][ma_corrected_positions] += 1
+						if decider > 0:
+							rocker_conf["tp"][ma_corrected_positions] += 1
+							rocker_labels.append("true_positive")
+						else:
+							rocker_conf["fn"][ma_corrected_positions] += 1
+							rocker_labels.append("false_negative")
+							
+						if decider_med >= 0:
+							rocker_staradj_labels.append("true_positive")
+						else:
+							rocker_staradj_labels.append("false_negative")
+							
+						if decider_lenient >= 0:
+							rocker_staradj_labels_lenient.append("true_positive")
+						else:
+							rocker_staradj_labels_lenient.append("false_negative")
 
+					else:
+						if evalue < evals[0]:
+							eval_10e3_conf["fp"][ma_corrected_positions] += 1
+							e3_labels.append("false_positive")
+						else:
+							eval_10e3_conf["tn"][ma_corrected_positions] += 1
+							e3_labels.append("true_negative")
+							
+						if evalue < evals[1]:
+							eval_10e10_conf["fp"][ma_corrected_positions] += 1
+							e10_labels.append("false_positive")
+						else:
+							eval_10e10_conf["tn"][ma_corrected_positions] += 1
+							e10_labels.append("true_negative")
+							
+						if evalue < evals[2]:
+							eval_10e20_conf["fp"][ma_corrected_positions] += 1
+							e20_labels.append("false_positive")
+						else:
+							eval_10e20_conf["tn"][ma_corrected_positions] += 1
+							e20_labels.append("true_negative")
+							
+						if evalue < evals[3]:
+							eval_10e30_conf["fp"][ma_corrected_positions] += 1
+							e30_labels.append("false_positive")
+						else:
+							eval_10e30_conf["tn"][ma_corrected_positions] += 1
+							e30_labels.append("true_negative")
+							
+						if pct_aln > aln_cut and pct_id > id_cut:
+							staramr_conf["fp"][ma_corrected_positions] += 1
+							staramr_labels.append("false_positive")
+						else:
+							staramr_conf["tn"][ma_corrected_positions] += 1
+							staramr_labels.append("true_negative")
+					
+						if decider > 0:
+							rocker_conf["fp"][ma_corrected_positions] += 1
+							rocker_labels.append("false_positive")
+						else:
+							rocker_conf["tn"][ma_corrected_positions] += 1
+							rocker_labels.append("true_negative")
+
+						if decider_med >= 0:
+							rocker_staradj_labels.append("false_positive")
+						else:
+							rocker_staradj_labels.append("true_negative")
+
+						if decider_lenient >= 0:
+							rocker_staradj_labels_lenient.append("false_positive")
+						else:
+							rocker_staradj_labels_lenient.append("true_negative")
+
+
+				#Write test data out
+				test['MA_pos'] = multiple_aln_midpoints
+				test['ROCkOut_label'] = rocker_labels
+				test['staramr_label'] = staramr_labels
+				test['10_e3_label'] = e3_labels
+				test['10_e10_label'] = e10_labels
+				test['10_e20_label'] = e20_labels
+				test['10_e30_label'] = e30_labels
+				test['combo_med'] = rocker_staradj_labels
+				test['combo_len'] = rocker_staradj_labels_lenient
+				
+				test.to_csv(test_out, sep = "\t", index = False)
+				
+				self.test_index += 1
 				
 				accuracy, sensitivity, specificity = self.confmat_to_stats(rocker_conf)
 				e3acc, e3sens, e3spec = self.confmat_to_stats(eval_10e3_conf)
@@ -499,8 +594,6 @@ class cross_validator:
 				self.testing_data_asp_e20[rl][i] = {"Train_indices":train.index.tolist(), "Accuracy":e20acc, "Sensitivity":e20sens, "Specificity":e20spec}
 				self.testing_data_asp_e30[rl][i] = {"Train_indices":train.index.tolist(), "Accuracy":e30acc, "Sensitivity":e30sens, "Specificity":e30spec}
 				self.testing_data_asp_staramr[rl][i] = {"Train_indices":train.index.tolist(), "Accuracy":staracc, "Sensitivity":starsens, "Specificity":starspec}
-			
-		
 			
 	def calculate_youden(self, current_window_tgt, current_window_con):		
 		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
@@ -712,15 +805,20 @@ class cross_validator:
 		self.asp_plot(self.testing_data_asp_e30, "evalue_10neg30")
 		self.asp_plot(self.testing_data_asp_staramr, "staramr")
 	
-prj = sys.argv[1]			
-mn = cross_validator(prj)
+prj = sys.argv[1]
+if len(sys.argv) > 2:
+	out = sys.argv[2]
+else:
+	out = None
+	
+mn = cross_validator(prj, out)
 mn.ready_inputs() #Load data, set project manager. Has to go first
 
 mn.prepare_offsets()
 mn.find_valid_targets()
-mn.find_filter()
-mn.get_filter()
-mn.interpolate()
+#mn.find_filter()
+#mn.get_filter()
+#mn.interpolate()
 
 mn.prepare_subsamples()
 
