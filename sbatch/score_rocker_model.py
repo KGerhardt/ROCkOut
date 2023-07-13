@@ -2,7 +2,21 @@
 
 '''Score the rocker model against static filters
 
-writes out a tsv table and a pdf bar plot of results.
+Takes inputs:
+
+1) original mock metagenome fasta
+2) best hit filtered hmmsearch result (besthit_filter_hmm.py)
+3) best hit filtered blastx alignment (besthit_filter_blast.py)
+4) best hit filtered passing rocker alignments
+5) best hit filtered failing rocker alignments
+
+* expects inputs to be best hit filtered.
+* newest rocker should have built in best hit filter.
+
+Outputs:
+
+1) tsv data table
+2) pdf bar plot
 
 -------------------------------------------
 Author :: Roth Conrad
@@ -15,76 +29,43 @@ All rights reserved
 -------------------------------------------
 '''
 
-import argparse, random
+import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-def best_hits(query, bitscore, d, line):
-    """ Filters the besthit based on bitscore """
-
-    if query in d:
-        old_bitscore = float(d[query][0].split('\t')[11])
-
-        if bitscore > old_bitscore:
-            d[query] = [line]
-
-        elif bitscore == old_bitscore:
-            d[query].append(line)
-
-    else:
-        d[query] = [line]
-
-    return d
-
-
-def best_hits_filter(infile):
-
-    d = {} # initialize dictionary for bitscore besthits
-    total = 0
-
-    with open(infile, 'r') as file:
-
-        for line in file:
-            total += 1
-            X = line.rstrip().split('\t')
-            query = X[0] # read identifier
-            bitscore = float(X[11]) # bitscore
-
-            d = best_hits(query, bitscore, d, line)
-
-    # store best hits
-    bhs = []
-    for k,v in d.items():
-        bhs.append(random.choice(v))
-
-    print(f'{infile}: {total}, {len(bhs)}')
-
-    return bhs
-
-
-def dedup_pos_neg(pos, neg):
-
-    pos_reads = {}
-
-    P, N, D = 0, 0, 0
-
-    for line in pos:
-        label = ';'.join(line.split(';')[:-1])
-        pos_reads[label] = ''
-        P += 1
-
-    for line in neg:
-        label = ';'.join(line.split(';')[:-1])
-        if label in pos_reads:
-            D += 1
+def read_fasta(fp):
+    ''' parses a fasta file into name, seq '''
+    name, seq = None, []
+    for line in fp:
+        line = line.rstrip()
+        if line.startswith(">"):
+            if name: yield (name, ''.join(seq))
+            name, seq = line, []
         else:
-            N += 1
+            seq.append(line)
+    if name: yield (name, ''.join(seq))
 
-    return P, N, D
+
+def parse_mm(mm):
+    ''' Read fasta and counts positive labeled reads. returns count '''
+
+    data = {}
+    pos_count = 0
+
+    with open(mm, 'r') as file:
+        for name, seq in read_fasta(file):
+            name = name[1:]
+            label = name.split(';')[-1]
+            data[label] = ''
+            if label == 'Positive':
+                pos_count += 1
+
+    print('Labels in this dataset:', list(data.keys()))
+
+    return pos_count
 
 
-def score_results(TP, FN, FP, TN):
+def score_results(TP, FP, TN, FN):
 
     P = TP + FP
     N = TN + FN
@@ -107,100 +88,228 @@ def score_results(TP, FN, FP, TN):
     return results
 
 
-def read_fasta(fp):
-    name, seq = None, []
-    for line in fp:
-        line = line.rstrip()
-        if line.startswith(">"):
-            if name: yield (name, ''.join(seq))
-            name, seq = line, []
-        else:
-            seq.append(line)
-    if name: yield (name, ''.join(seq))
+def score_blastx(bx, all_pos_reads):
 
+    customA = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    customB = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    e30 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    e20 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    e10 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    e03 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
 
-def get_read_lengths(prl, nrl):
+    pos_count = 0
 
-    read_lens = {} # readname: readlength
+    with open(bx, 'r') as file:
+        for line in file:
+            X = line.rstrip().split('\t')
+            query = X[0] # read identifier
+            label = query.split(';')[-1]
+            evalue = float(X[10]) # evalue
+            pid = float(X[2]) # percent sequence identity
+            aLen = int(X[3]) # read alignment length
+            qLen = int(X[12]) / 3 # full length of read divided by 3 amino acids
+            pMatch = aLen / qLen # percent match length of read length
 
-    with open(prl, 'r') as file:
-        for name, seq in read_fasta(file):
-            read_lens[name[1:]] = len(seq)
+            # count positive reads in blastX alignment
+            if label == 'Positive':
+                pos_count += 1
 
-    with open(nrl, 'r') as file:
-        for name, seq in read_fasta(file):
-            read_lens[name[1:]] = len(seq)
+            # count customA filter
+            if pMatch >= 0.7 and pid >= 95:
+                if label == 'Positive':
+                    customA['TP'] += 1
+                else: customA['FP'] += 1
+            else:
+                if label == 'Positive':
+                    customA['FN'] += 1
+                else: customA['TN'] += 1
 
-    return read_lens
+            # count customB filter
+            if pMatch >= 0.5 and pid >= 90:
+                if label == 'Positive':
+                    customB['TP'] += 1
+                else: customB['FP'] += 1
+            else:
+                if label == 'Positive':
+                    customB['FN'] += 1
+                else: customB['TN'] += 1
 
+            # count e30 filter
+            if evalue <= 1e-30:
+                if label == 'Positive':
+                    e30['TP'] += 1
+                else: e30['FP'] += 1
+            else:
+                if label == 'Positive':
+                    e30['FN'] += 1
+                else: e30['TN'] += 1
 
-def static_filter_blast(result, read_lens):
+            # count e20 filter
+            if evalue <= 1e-20:
+                if label == 'Positive':
+                    e20['TP'] += 1
+                else: e20['FP'] += 1
+            else:
+                if label == 'Positive':
+                    e20['FN'] += 1
+                else: e20['TN'] += 1
 
-    strpass, strfail = 0, 0
-    e30pass, e30fail = 0, 0
-    e20pass, e20fail = 0, 0
-    e10pass, e10fail = 0, 0
-    e03pass, e03fail = 0, 0
+            # count e10 filter
+            if evalue <= 1e-10:
+                if label == 'Positive':
+                    e10['TP'] += 1
+                else: e10['FP'] += 1
+            else:
+                if label == 'Positive':
+                    e10['FN'] += 1
+                else: e10['TN'] += 1
 
-    for line in result:
-        X = line.rstrip().split('\t')
-        query = X[0] # read identifier
-        qX = query.split('_')
-        label = qX[0]
-        if len(qX) == 5: target = '_'.join(qX[-2:])
-        else: target = qX[-1]
-        evalue = float(X[10]) # evalue
-        pid = float(X[2]) # percent sequence identity
-        aLen = int(X[3]) # read alignment length
-        qLen = read_lens[query] / 3 # full length of read divided by 3 amino acids
-        pMatch = aLen / qLen # percent match length of read length
+            # count e03 filter
+            if evalue <= 1e-03:
+                if label == 'Positive':
+                    e03['TP'] += 1
+                else: e03['FP'] += 1
+            else:
+                if label == 'Positive':
+                    e03['FN'] += 1
+                else: e03['TN'] += 1
 
-        if pMatch >= 0.5 and pid >= 90 and evalue <= 1e-3:
-            strpass += 1
-        else:
-            strfail += 1
+    # group the data for ease
+    data = [customA, customB, e30, e20, e10, e03]
 
-        if evalue <= 1e-30:
-            e30pass += 1
-        else:
-            e30fail += 1
-
-        if evalue <= 1e-20:
-            e20pass += 1
-        else:
-            e20fail += 1
-
-        if evalue <= 1e-10:
-            e10pass += 1
-        else:
-            e10fail += 1
-
-        if evalue <= 1e-03:
-            e03pass += 1
-        else:
-            e03fail += 1
-
-
-    data = [
-            strpass, strfail, e30pass, e30fail, e20pass,
-            e20fail, e10pass, e10fail, e03pass, e03fail
-            ]
+    # check all positive reads are counted
+    print('\n\nPositive read count from metagenome:', all_pos_reads)
+    print('\nPositive read count from BlastX alignment:', pos_count)
+    pos_diff = all_pos_reads - pos_count
+    print('Positive reads not aligned by BlastX:', pos_diff)
 
     return data
 
 
-def score_static(pabh, nabh, read_lens):
+def score_rocker(rp, rf, all_pos_reads):
 
-    pos = static_filter_blast(pabh, read_lens)
-    neg = static_filter_blast(nabh, read_lens)
+    roc = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
 
-    staramer = score_results(pos[0], pos[1], neg[0], neg[1])
-    e30 = score_results(pos[2], pos[3], neg[2], neg[3])
-    e20 = score_results(pos[4], pos[5], neg[4], neg[5])
-    e10 = score_results(pos[6], pos[7], neg[6], neg[7])
-    e03 = score_results(pos[8], pos[9], neg[8], neg[9])
+    passing_reads = {}
+    pos_count = 0
 
-    return staramer, e30, e20, e10, e03
+    # rocker passing TP, FP
+    with open(rp, 'r') as file:
+        for line in file:
+            X = line.rstrip().split('\t')
+            query = X[0] # read identifier
+            label = query.split(';')[-1]
+            evalue = float(X[10]) # evalue
+            passing_reads[query] = ''
+
+            if label == 'Positive':
+                roc['TP'] += 1
+                pos_count += 1
+            else: roc['FP'] += 1
+
+    # rocker failing FN, TN
+    with open(rf, 'r') as file:
+        for line in file:
+            X = line.rstrip().split('\t')
+            query = X[0] # read identifier
+            label = query.split(';')[-1]
+            evalue = float(X[10]) # evalue
+
+            if query in passing_reads: continue
+
+            if label == 'Positive':
+                roc['FN'] += 1
+                pos_count += 1
+            else: roc['TN'] += 1
+
+    # check all positive reads are counted
+    print('\nPositive read count from ROCkOut:', pos_count)
+    pos_diff = all_pos_reads - pos_count
+    print('Positive reads not reported by ROCkOut:', pos_diff)
+
+    return roc
+
+
+def score_hmm(hm, all_pos_reads):
+
+    hDf = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    h30 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    h20 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    h10 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+    h03 = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+
+    pos_count = 0
+
+    with open(hm, 'r') as file:
+        for line in file:
+            X = line.rstrip().split('\t')
+            query = X[0] # read identifier
+            label = query.split(';')[-1]
+            evalue = float(X[1]) # evalue
+
+            # count hmm default
+            if evalue <= 0.01:
+                if label == 'Positive':
+                    hDf['TP'] += 1
+                else: hDf['FP'] += 1
+            else:
+                if label == 'Positive':
+                    hDf['FN'] += 1
+                else: hDf['TN'] += 1
+
+            # count h30 filter
+            if evalue <= 1e-30:
+                if label == 'Positive':
+                    h30['TP'] += 1
+                else: h30['FP'] += 1
+            else:
+                if label == 'Positive':
+                    h30['FN'] += 1
+                else: h30['TN'] += 1
+
+            # count h20 filter
+            if evalue <= 1e-20:
+                if label == 'Positive':
+                    h20['TP'] += 1
+                else: h20['FP'] += 1
+            else:
+                if label == 'Positive':
+                    h20['FN'] += 1
+                else: h20['TN'] += 1
+
+            # count h10 filter
+            if evalue <= 1e-10:
+                if label == 'Positive':
+                    h10['TP'] += 1
+                else: h10['FP'] += 1
+            else:
+                if label == 'Positive':
+                    h10['FN'] += 1
+                else: h10['TN'] += 1
+
+            # count h03 filter
+            if evalue <= 1e-03:
+                if label == 'Positive':
+                    h03['TP'] += 1
+                else: h03['FP'] += 1
+            else:
+                if label == 'Positive':
+                    h03['FN'] += 1
+                else: h03['TN'] += 1
+
+            # Count positive reads mapped by hmmsearch
+            if label == 'Positive':
+                pos_count += 1
+
+    # group the data for ease
+    data = [h30, h20, h10, h03, hDf]
+
+    # check all positive reads are counted
+    print('\nPositive read count from hmmsearch:', pos_count)
+    pos_diff = all_pos_reads - pos_count
+    print('Positive reads not aligned by hmmsearch:', pos_diff)
+
+    return data
 
 
 def build_bar_plots(df, out):
@@ -214,10 +323,23 @@ def build_bar_plots(df, out):
     for i, met in enumerate(metrics):
         ax = axes[i]
         data = df.T[met].to_list()
-        _ = ax.bar(labels, data, color='#bdbdbd', width=0.8)
+        _ = ax.bar(labels, data, color='#636363', width=0.5, alpha=0.75)
         ax.set_ylabel(met, fontsize=fs)
-        ax.xaxis.set_tick_params(rotation=45, labelsize=fs)
         ax.set_ylim([0, 1])
+        ax.vlines(x=0.5, ymin=0, ymax=1, color='#000000', ls='--', lw=1.5,)
+        ax.vlines(x=5.5, ymin=0, ymax=1, color='#000000', ls='--', lw=1.5,)
+        ax.text(3, 0.92, 'BLASTx', fontweight='black', ha='center')
+        ax.hlines(y=0.91, xmin=1.9, xmax=4.1, color='#000000', ls='-', lw=1.5)
+        ax.text(8.2, 0.92, 'HMM', fontweight='black', ha='center')
+        ax.hlines(y=0.91, xmin=7.45, xmax=8.95, color='#000000', ls='-', lw=1.5)
+        ax.yaxis.grid(
+            which="major", color='#d9d9d9', linestyle='--',
+            linewidth=1, zorder=1
+            )
+        ax.set_axisbelow(True)
+
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+         rotation_mode="anchor")
 
     fig.set_tight_layout(True)
     plt.savefig(f'{out}_bar_plot.pdf')
@@ -234,57 +356,36 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter
         )
     parser.add_argument(
-        '-pp', '--pos_pass_file',
-        help='Positive read passing rocker filter (TP).',
+        '-mm', '--mock_metagenome_fasta',
+        help='Original mock metagenome fasta file.',
         metavar='',
         type=str,
         required=True
         )
     parser.add_argument(
-        '-pf', '--pos_fail_file',
-        help='Positive read failing rocker filter (FN).',
+        '-bx', '--blastx_alignments_file',
+        help='Best hit filtered blastx alignment file.',
         metavar='',
         type=str,
         required=True
         )
     parser.add_argument(
-        '-np', '--neg_pass_file',
-        help='Negative read passing rocker filter (FP).',
+        '-hm', '--filtered_hmmer_file',
+        help='best hit filtered hmmsearch results.',
         metavar='',
         type=str,
         required=True
         )
     parser.add_argument(
-        '-nf', '--neg_fail_file',
-        help='Negative read failing rocker filter (TN).',
+        '-rp', '--rocker_passing_alignments',
+        help='BlastX alignments passing the rocker filter.',
         metavar='',
         type=str,
         required=True
         )
     parser.add_argument(
-        '-pa', '--pos_alignments_file',
-        help='Positive read unfiltered alignment file.',
-        metavar='',
-        type=str,
-        required=True
-        )
-    parser.add_argument(
-        '-na', '--neg_alignments_file',
-        help='Negative read unfiltered alignment file.',
-        metavar='',
-        type=str,
-        required=True
-        )
-    parser.add_argument(
-        '-prl', '--pos_reads_fasta',
-        help='Positive reads fasta file (aligned reads).',
-        metavar='',
-        type=str,
-        required=True
-        )
-    parser.add_argument(
-        '-nrl', '--neg_reads_fasta',
-        help='Negative reads fasta file (aligned reads).',
+        '-rf', '--rocker_failing_alignments',
+        help='BlastX alignments failing the rocker filter.',
         metavar='',
         type=str,
         required=True
@@ -299,55 +400,47 @@ def main():
     args=vars(parser.parse_args())
 
     # define input params
-    pp = args['pos_pass_file'] # rocker filter TP
-    pf = args['pos_fail_file'] # rocker filter FN
-    np = args['neg_pass_file'] # rocker filter FP
-    nf = args['neg_fail_file'] # rocker filter TN
-    # these are to test the static filters
-    pa = args['pos_alignments_file'] # unfiltered positive alignments
-    na = args['neg_alignments_file'] # unfilter negative alignments
-    prl = args['pos_reads_fasta'] # pos reads fasta
-    nrl = args['neg_reads_fasta'] # neg reads fasta
+    mm = args['mock_metagenome_fasta'] # original mock metagenome fasta
+    bx = args['blastx_alignments_file'] # best hit filtered blastx file
+    hm = args['filtered_hmmer_file'] # best hit filtered hmmsearch file
+    rp = args['rocker_passing_alignments'] # rocker passing alignments
+    rf = args['rocker_failing_alignments'] # rocker failing alignments
     out = args['output_prefix']  # output file prefix
 
     # Do what you came here to do:
     print('\n\nRunning Script...\n\n')
 
-    print('\t\tBest hit filtering: before, after\n')
+    # Get all reads labeled as positive
+    all_pos_reads = parse_mm(mm)
+    # Count TP, FP, TN, FN for blastx
+    bx_data = score_blastx(bx, all_pos_reads)
+    bx_results = []
+    for d in bx_data:
+        r = score_results(d['TP'], d['FP'], d['TN'], d['FN'])
+        bx_results.append(r)
 
-    # score ROCker model
-    # best hit filter
-    TPx = best_hits_filter(pp)
-    FNx = best_hits_filter(pf)
-    TP, FN, D = dedup_pos_neg(TPx, FNx)
-    print(f'\tPassing read duplicates removed from failing reads: {D}\n')
-    TPx, FNx = None, None
+    # Count TP, FP, TN, FN for rocker
+    roc_data = score_rocker(rp, rf, all_pos_reads)
+    roc_results = score_results(
+                            roc_data['TP'], roc_data['FP'],
+                            roc_data['TN'], roc_data['FN']
+                            )
 
-    FPx = best_hits_filter(np)
-    TNx = best_hits_filter(nf)
-    FP, TN, D = dedup_pos_neg(FPx, TNx)
-    print(f'\tPassing read duplicates removed from failing reads: {D}\n')
-    FPx, TNx = None, None
-
-    # then score the results
-    rocker = score_results(TP, FN, FP, TN)
-
-    # score static blast filters
-    # best hit filter first
-    pabh = best_hits_filter(pa)
-    nabh = best_hits_filter(na)
-    # get read lengths for filtering
-    read_lens = get_read_lengths(prl, nrl)
-
-
-    # score the results
-    staramer, e30, e20, e10, e03 = score_static(pabh, nabh, read_lens)
+    # Count TP, FP, TN, FN for hmm
+    hm_data = score_hmm(hm, all_pos_reads)
+    hm_results = []
+    for d in hm_data:
+        r = score_results(d['TP'], d['FP'], d['TN'], d['FN'])
+        hm_results.append(r)
 
     # output table and pdf
     scores = {
-                'ROCker': rocker, 'STARAMR': staramer,
-                'evalue 1e-30': e30, 'evalue 1e-20': e20,
-                'evalue 1e-10': e10, 'evalue 1e-3': e03,
+                'ROCker': roc_results, 'Custom-A': bx_results[0],
+                'Custom-B': bx_results[1], 'evalue 1e-30': bx_results[2],
+                'evalue 1e-20': bx_results[3], 'evalue 1e-10': bx_results[4],
+                'evalue 1e-3': bx_results[5], 'HMM 1e-30': hm_results[0],
+                'HMM 1e-20': hm_results[1], 'HMM 1e-10': hm_results[2],
+                'HMM 1e-3': hm_results[3], 'HMM default': hm_results[4],
                 }
     rows = [
             'Total', 'P', 'N', 'TP', 'FP', 'TN', 'FN', 'FNR', 'FPR',
@@ -355,13 +448,12 @@ def main():
             'Precision', 'Recall', 'F1'
             ]
 
-    df = pd.DataFrame(scores, index=rows)
+    df = pd.DataFrame(scores, index=rows).round(2)
     df.to_csv(f'{out}_score_table.tsv', sep='\t')
 
     print('\n\n', df)
 
     _ = build_bar_plots(df, out)
-
 
     print('\n\nComplete success space cadet! Hold on to your boots.\n\n')
 
