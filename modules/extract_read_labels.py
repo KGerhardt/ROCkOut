@@ -291,6 +291,8 @@ def process_reads(labels, mn):
 				negative_set = labels[genome]["neg"]
 				one_read_ext(read, positive_set, negative_set)
 
+	return None
+				
 def process_alignments(labels, mn):
 	results = []
 	seen_genomes = {}
@@ -331,7 +333,7 @@ def options():
 def output_reads(prjdir, external = True):
 	read_labeller, manager = trawl(prjdir)
 	if external:
-		process_reads(read_labeller, manager)
+		hold = process_reads(read_labeller, manager)
 		prep = None
 	else:
 		prep = process_alignments(read_labeller, manager)
