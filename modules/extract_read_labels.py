@@ -141,14 +141,16 @@ def one_read_ext(f, p, n):
 				segs = line.strip().split(";")
 				start = int(segs[1])
 				end = int(segs[2])
-				segs[-1] = "Non_Target"
+				label = "Non_Target"
 				for start_stop_name in p:
 					if (start >= start_stop_name[0] and start < start_stop_name[1]) or (end > start_stop_name[0] and end <= start_stop_name[1]):
-						segs[-1] = "source_protein="+start_stop_name[2]+";Positive"
+						label = "source_protein="+start_stop_name[2]+";Positive"
 				if label == "Non_Target": #Prevent overwrite of a positive label.
 					for start_stop_name in n:
 						if (start >= start_stop_name[0] and start < start_stop_name[1]) or (end > start_stop_name[0] and end <= start_stop_name[1]):
-							segs[-1] = "source_protein="+start_stop_name[2]+";Negative"
+							label = "source_protein="+start_stop_name[2]+";Negative"
+				
+				segs[-1] = label
 				segs = ";".join(segs)
 				print(segs)
 			else:
@@ -340,5 +342,5 @@ def output_reads(prjdir, external = True):
 
 	return prep, manager
 	
-#dir = sys.argv[1]
-#output_reads(dir, False)
+dir = sys.argv[1]
+output_reads(dir, True)
