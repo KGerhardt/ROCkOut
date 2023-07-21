@@ -458,7 +458,7 @@ class plot_data:
 			self.loaded_data[rl] = self.loaded_data[rl][self.loaded_data[rl]["protein"].isin(self.active_proteins)]
 			self.loaded_data[rl] = self.loaded_data[rl].reset_index(drop=True)
 			
-			self.loaded_data[rl].to_csv(os.path.normpath(self.project_dir+"/"+str(rl)+".reads.txt"), sep = "\t")
+			#self.loaded_data[rl].to_csv(os.path.normpath(self.project_dir+"/"+str(rl)+".reads.txt"), sep = "\t")
 				
 	def calculate_youden(self, current_window_tgt, current_window_con, all_cuts = False):	
 		#Select the maximum depth of coverage for the current window at each bitscore. Should always be increasing down the matrix.
@@ -507,7 +507,8 @@ class plot_data:
 		if np.isnan(Youden_by_bs[cutoff]):
 			#Natural return is 0 when there's no conf, but we actually want to choose
 			#the min bitscore in this case, which is the last index.
-			cutoff = max_by_bitscore_tgt.shape[0]-1
+			#cutoff = max_by_bitscore_tgt.shape[0]-1
+			cutoff = 0
 			if all_cuts:
 				cutoff = np.array(cutoff)
 		else:
@@ -534,17 +535,8 @@ class plot_data:
 		
 		return per_position_data
 		
-	def prep_bins_2d(self, vert_id, vert_aln):
-		'''
-		per_position_data = {}
-		for vbin in vert_aln:
-			per_position_data[vbin] = {"Target" : {}, "Confounder": {}}
-			for vbin2 in vert_id:
-				#The range is always 0:max_pos
-				per_position_data[vbin]["Target"][vbin2] = np.zeros(self.multiple_align_size, dtype = np.int32)
-				per_position_data[vbin]["Confounder"][vbin2] = np.zeros(self.multiple_align_size, dtype = np.int32)
-		'''
-
+	#Needs both vert and horiz because there's no self.aln len
+	def prep_bins_idaln(self, vert_id, vert_aln):
 		per_position_data = {"Target":{}, "Confounder":{}}
 		for id in vert_id:
 			per_position_data["Target"][id] = np.zeros(len(vert_aln), dtype = np.int32)
@@ -574,25 +566,6 @@ class plot_data:
 		
 		return collected_target_data, collected_confounder_data, desc_bitscores
 	
-	#def convert_bins_to_dfs_2d(self, id_bins, id_aln):
-	def convert_bins_to_dfs_2d(self, id_aln):
-		'''
-		for aln in sorted(list(id_aln.keys())):
-			target, confounder, desc_ids = self.convert_bins_to_dfs(id_bins, id_aln[aln])
-			id_aln[aln] = {"target":target, "confounder":confounder, "ids":desc_ids}
-			#collected_target_data, collected_confounder_data, desc_bitscores
-		'''
-		finished_tgt, finished_con = [], []
-		for id in sorted(list(id_aln["Target"].keys())): #Keys are the same for tgt, conf
-			finished_tgt.append(id_aln["Target"][id])
-			finished_con.append(id_aln["Confounder"][id])
-		
-		finished_tgt = np.vstack(finished_tgt)
-		finished_con = np.vstack(finished_con)
-		
-		#return id_aln
-		return finished_tgt, finished_con
-	
 	def calculate_roc_curves(self):		
 		def find_nearest(array, value):
 			#array = np.asarray(array)
@@ -615,6 +588,34 @@ class plot_data:
 		#From meeting:
 		#We're going to repeat this model building for alignment length and percent identity 
 		#and use the three models as an ensemble for the filter step.
+		min_bitscore = 100000
+		max_bitscore = 0
+		
+		min_aln = 100000
+		max_aln = 0
+		
+		min_pct = 100000
+		max_pct = 0
+		for rl in self.loaded_data:
+			if min(self.loaded_data[rl]["bitscore"]) < min_bitscore:
+				min_bitscore = min(self.loaded_data[rl]["bitscore"])
+			if max(self.loaded_data[rl]["bitscore"]) > max_bitscore:
+				max_bitscore = max(self.loaded_data[rl]["bitscore"])
+				
+			if min(self.loaded_data[rl]["pct_aln"]) < min_aln:
+				min_aln = min(self.loaded_data[rl]["pct_aln"])
+			if max(self.loaded_data[rl]["pct_aln"]) > max_aln:
+				max_aln = max(self.loaded_data[rl]["pct_aln"])
+			
+			if min(self.loaded_data[rl]["pct_id"]) < min_pct:
+				min_pct = min(self.loaded_data[rl]["pct_id"])
+			if max(self.loaded_data[rl]["pct_id"]) > max_pct:
+				max_pct = max(self.loaded_data[rl]["pct_id"])
+			
+		#Determine the bin boundaries
+		vert_bins = np.arange(min_bitscore, max_bitscore, self.resolution)
+		vert_pct = np.round(np.arange(min_pct, max_pct, self.resolution_id), 2)
+		vert_aln = np.round(np.arange(min_aln, 100, self.resolution_aln), 2)
 		
 		for rl in self.loaded_data:
 			print("Read length", rl)
@@ -625,7 +626,7 @@ class plot_data:
 			#Select out active prots
 			#Not neneded thanks to above filter
 			#one_length = one_length.loc[one_length['protein'].isin(self.active_proteins)]
-			
+			'''
 			min_bitscore = min(one_length["bitscore"])
 			max_bitscore = max(one_length["bitscore"])
 			
@@ -634,19 +635,15 @@ class plot_data:
 			
 			min_pct = min(one_length["pct_id"])
 			max_pct = max(one_length["pct_id"])
-			
-			#Determine the bin boundaries
-			vert_bins = np.arange(min_bitscore, max_bitscore, self.resolution)
-			vert_pct = np.round(np.arange(min_pct, max_pct, self.resolution_id), 2)
-			vert_aln = np.round(np.arange(min_aln, 100, self.resolution_aln), 2)
-			
+			'''
+
 			#Set up data repo - rows corresp. to each vertical bin and are the length of the protein, 
 			#Also divided by target vs. confounder.
 			per_position_data = self.prep_bins(vert_bins)
 			per_position_data_id = self.prep_bins(vert_pct)
 			per_position_data_aln = self.prep_bins(vert_aln)
 			
-			id_aln = self.prep_bins_2d(vert_pct, vert_aln)
+			id_aln = self.prep_bins_idaln(vert_pct, vert_aln)
 										
 			#Iterate through the reads and fill the appropriate row/columns
 			for classifier, s, e, bs, targ, id, aln in zip(one_length["classifier"], 
@@ -694,12 +691,14 @@ class plot_data:
 			collected_target_data_id, collected_confounder_data_id, desc_ids = self.convert_bins_to_dfs(vert_pct, per_position_data_id)
 			collected_target_data_aln, collected_confounder_data_aln, desc_alns = self.convert_bins_to_dfs(vert_aln, per_position_data_aln)
 			
-			
 			if rl not in self.senspec:
 				self.senspec[rl] = []
 				self.senspec_id[rl] = []
 				self.senspec_aln[rl] = []
 				self.senspec_id_aln[rl] = []
+			
+			#print(rl, "id_aln_accuracy_matrix")
+			#print(id_aln_tgt/(id_aln_tgt+id_aln_con))
 			
 			aln_cuts = []
 			id_cuts = []
@@ -718,15 +717,11 @@ class plot_data:
 								
 				current_window_tgt = id_aln_tgt[:, np.arange(window_start, window_end)]
 				current_window_con = id_aln_con[:, np.arange(window_start, window_end)]
-				cutoffs, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con, all_cuts = True)
+				cut, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con, all_cuts = False)
 				
-				print("Cuts", cutoffs)
-				for cut in cutoffs:
-					self.senspec_id_aln[rl].append((vert_aln[window_midpoint], desc_ids[cut], accuracy[cut], sensitivity[cut], specificity[cut],))
-			
-			
-			
-			
+				#print("Cuts", cutoffs)
+				#for cut in cutoffs:
+				self.senspec_id_aln[rl].append((vert_aln[window_midpoint], desc_ids[cut], accuracy[cut], sensitivity[cut], specificity[cut],))
 			
 			#Ceiling of the number of full windows.
 			half_window = int(self.window_size/2)
@@ -750,7 +745,7 @@ class plot_data:
 				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
 				cutoff_bitscore = desc_bitscores[cutoff]
 				self.senspec[rl].append((window_midpoint, cutoff_bitscore, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
-
+				
 				#Percent identity
 				#Select columns matching the window from cum sums
 				current_window_tgt = collected_target_data_id[:, np.arange(window_start, window_end)]
@@ -761,6 +756,7 @@ class plot_data:
 				cutoff_id = desc_ids[cutoff]
 				self.senspec_id[rl].append((window_midpoint, cutoff_id, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
 				
+				
 				#Alignment length
 				#Select columns matching the window from cum sums
 				current_window_tgt = collected_target_data_aln[:, np.arange(window_start, window_end)]
@@ -770,11 +766,12 @@ class plot_data:
 				cutoff, accuracy, sensitivity, specificity = self.calculate_youden(current_window_tgt, current_window_con)
 				cutoff_aln = desc_alns[cutoff]
 				self.senspec_aln[rl].append((window_midpoint, cutoff_aln, accuracy[cutoff], sensitivity[cutoff], specificity[cutoff],))
-
+				
 				data = (rl, window_midpoint, cutoff_bitscore, cutoff_id, cutoff_aln,)
 				
 				self.models.append(data)
 				
+
 		self.models = pd.DataFrame(self.models)
 		self.models.columns = ["read_length", "window_midpt", "bitscore_cutoff", "percent_id_cutoff", "percent_aln_cutoff"]
 		
@@ -969,6 +966,7 @@ class plot_data:
 				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
 		sp.close()
 		
+		'''
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_aln.txt")
 		sp = open(output_senspec, "w")
 		print("read_length", "window_midpt", "cutoff_aln", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
@@ -976,6 +974,7 @@ class plot_data:
 			for row in self.senspec_aln[rl]:
 				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
 		sp.close()
+		'''
 		
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_id_aln.txt")
 		sp = open(output_senspec, "w")
@@ -1015,7 +1014,7 @@ class plot_data:
 		
 		for rl in self.loaded_data:
 			this_output = os.path.normpath(reads_path + "/read_len_" + str(rl)+"_final_reads.tsv")
-			self.loaded_data[rl].to_csv(this_output, sep = "\t")
+			self.loaded_data[rl].to_csv(this_output, sep = "\t", index = False)
 			
 		#Copy the multiple alignment to the model directory
 		ma_path = os.path.normpath(self.project_dir + "/shared_files/multiple_alignment/complete_multiple_alignment_aa.fasta" )
