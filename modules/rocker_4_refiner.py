@@ -102,7 +102,6 @@ class plot_data:
 			self.manager.parse_aligns()
 			self.manager.parse_multiple_alignment()
 			
-			
 			self.prepare_offsets() #load a MA and determine position by position offset for each target protein.
 			self.find_valid_targets()
 
@@ -132,8 +131,8 @@ class plot_data:
 				genomes_for_pplacer_neg = None
 				
 			#We need to hit both the main
-			#REVERT TODO
-			if True:
+			#if True:
+			if False:
 				phylomap_build(pos = genomes_for_pplacer_pos,
 								neg = genomes_for_pplacer_neg,
 								output = out_path_base)	
@@ -189,6 +188,7 @@ class plot_data:
 			for file in self.manager.targets[prot]:				
 				if '/positive/' in file:
 					fh = open(file)
+					#print(file)
 					for line in fh:
 						self.targets_for_writeout += line
 						if line.startswith(">"):
@@ -201,7 +201,7 @@ class plot_data:
 				else: #is negative
 					fh = open(file)
 					for line in fh:
-						self.targets_for_writeout += line
+						#self.targets_for_writeout += line
 						if line.startswith(">"):
 							next_item = line.strip().split()[0][1:]
 					fh.close()
@@ -965,16 +965,6 @@ class plot_data:
 			for row in self.senspec_id[rl]:
 				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
 		sp.close()
-		
-		'''
-		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_aln.txt")
-		sp = open(output_senspec, "w")
-		print("read_length", "window_midpt", "cutoff_aln", "accuracy", "sensitivity", "specificity", sep = "\t", file = sp)
-		for rl in self.senspec_aln:
-			for row in self.senspec_aln[rl]:
-				print(rl, row[0], row[1], row[2], row[3], row[4], sep = "\t", file = sp)
-		sp.close()
-		'''
 		
 		output_senspec = os.path.normpath(out_path_base + "/accuracy_sensitivity_and_specificity_id_aln.txt")
 		sp = open(output_senspec, "w")
