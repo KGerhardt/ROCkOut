@@ -296,6 +296,35 @@ class rocker_filterer:
 
 		return df
 		
+	def label_sim_reads(self, read_names, assignments):
+		outs = {"tp":0, "fp":0, "fn":0, "tn":0}
+
+		for read, guessed_positive in zip(read_names, assignments):		
+			segs = read.split(";")
+			label = segs[-1]
+			#print(label, guessed_positive)
+			
+			if guessed_positive:
+				if label == "Positive":
+					outs["tp"] += 1
+				else:
+					outs["fp"] += 1
+			else:
+				if label == "Positive":
+					outs["fn"] += 1
+				else:
+					outs["tn"] += 1
+			
+			
+		fpr = outs["fp"] / (outs["fp"]+outs["tn"])
+		fnr = outs["fn"] / (outs["fn"] + outs["tp"])
+		
+		print(outs)
+		print("FPR", "%.2f" % (fpr*100), "%")
+		print("FNR", "%.2f" % (fnr*100), "%")
+			
+		return None
+		
 	def filter_reads(self, read_df):
 		percent_alignment_matches = np.searchsorted(self.aln_positions, read_df["pct_aln"], side = 'left')
 		percent_alignment_matches -= 1
@@ -309,6 +338,9 @@ class rocker_filterer:
 		multiple_alignment_positions = np.array(multiple_alignment_positions, dtype = np.int32)
 		
 		passing_indices = []
+		passes_bitscore = []
+		passes_id = []
+		passes_idaln = []
 		
 		index = 0
 		for read, ma_pos, pct_aln_index, pct_id, bitscore, readlen in zip(read_df["read"],
@@ -333,42 +365,37 @@ class rocker_filterer:
 			passid = (pct_id >= id_pos_cutoff)
 			passidaln = (pct_id >= id_aln_cutoff)
 				
+			passes_bitscore.append(passbs)
+			passes_id.append(passid)
+			passes_idaln.append(passidaln)
+				
 			vote = sum([passbs, passid, passidaln])
 			passing_indices.append(vote)
 				
 			index += 1
 		
 		vote_count = np.array(passing_indices, dtype = np.int32)
-		read_df["passed_filters_out_of_3"] = vote_count
+		read_df["passes_bitscore_v_pos"] = passes_bitscore
+		read_df["passes_pct_id_v_pos"] = passes_id
+		read_df["passes_pct_id_v_pct_aln"] = passes_idaln
 
+		read_df["passed_filters_out_of_3"] = vote_count
+		read_df["passes_ensemble"] = (vote_count >= 2)
+		
 		passing_reads = read_df[read_df["passed_filters_out_of_3"] >= 2]
 		failing_reads = read_df[read_df["passed_filters_out_of_3"] < 2]
 		
-		if True:
-			outs = {"tp":0, "fp":0, "fn":0, "tn":0}
-			for read, vote in zip(read_df["read"], vote_count):
-				segs = read.split(";")
-				label = segs[-1]
-				
-				if vote >= 2:
-					if label == "Positive":
-						outs["tp"] += 1
-					else:
-						outs["fp"] += 1
-				else:
-					if label == "Positive":
-						outs["fn"] += 1
-					else:
-						outs["tn"] += 1
-			
-			
-			fpr = outs["fp"] / (outs["fp"]+outs["tn"])
-			fnr = outs["fn"] / (outs["fn"] + outs["tp"])
-			print(outs)
-			print("FPR", fpr)
-			print("FNR", fnr)
-		
-			
+		print("Bitscore vs. position in MA")
+		self.label_sim_reads(read_df["read"], read_df["passes_bitscore_v_pos"])
+
+		print("Pct. ID vs. position in MA")
+		self.label_sim_reads(read_df["read"], read_df["passes_pct_id_v_pos"])
+
+		print("Pct. ID vs. Pct. aln")
+		self.label_sim_reads(read_df["read"], read_df["passes_pct_id_v_pct_aln"])
+
+		print("Ensemble model vote")
+		self.label_sim_reads(read_df["read"], read_df["passes_ensemble"])
 		
 		return passing_reads, failing_reads
 
