@@ -132,7 +132,7 @@ class plot_data:
 				
 			#We need to hit both the main
 			#if True:
-			if False:
+			if True:
 				phylomap_build(pos = genomes_for_pplacer_pos,
 								neg = genomes_for_pplacer_neg,
 								output = out_path_base)	
