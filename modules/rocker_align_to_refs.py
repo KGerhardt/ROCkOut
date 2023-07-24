@@ -66,7 +66,6 @@ class rocker_aligner:
 			
 			self.commands.append(arg)
 					
-
 	def clean_reads(self, r, a, c):
 		reads_to_keep = {}
 		with open(a) as fh:
@@ -112,9 +111,6 @@ class rocker_aligner:
 			proc = subprocess.run(alignment_arg, stdout=subprocess.PIPE, stderr = subprocess.PIPE)
 			self.stdout += proc.stdout.decode() + "\n"
 			self.stderr += proc.stderr.decode() + "\n"
-			#print(alignment_arg)
-			#print(proc.stdout.decode())
-			#print(proc.stderr.decode())
 			print("")
 			
 		if self.filtered_reads is not None:
@@ -129,7 +125,6 @@ def align_to_refs(parser, opts):
 	dir = opts.dir
 	reads = opts.reads
 	reads_dir = opts.reads_dir
-	#output = opts.alignments
 	threads = opts.threads
 	blast = opts.use_blast
 	

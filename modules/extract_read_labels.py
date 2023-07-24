@@ -107,7 +107,7 @@ def trawl(pd):
 	mn.parse_aligns()
 	mn.parse_probable_targets()
 	mn.parse_multiple_alignment()
-	
+		
 	#We want to collect a list of positive and negative info for each target and negative genome, 
 	#knowing that simmed reads at a length are identical for each genome in each grp
 	read_label_reference = {}
@@ -130,6 +130,12 @@ def trawl(pd):
 			for target_protein in this_protein[genome]:
 				#Starts and stops for true negatives
 				read_label_reference[genome]["neg"].append((target_protein[0], target_protein[1], target_protein[3],))
+	
+	#for genome in sorted(read_label_reference):
+	#	for pn in read_label_reference[genome]:
+	#		print(genome, pn, read_label_reference[genome][pn])
+	#sys.exit()
+	
 	
 	return read_label_reference, mn
 		
@@ -334,6 +340,8 @@ def options():
 					
 def output_reads(prjdir, external = True):
 	read_labeller, manager = trawl(prjdir)
+	
+	
 	if external:
 		hold = process_reads(read_labeller, manager)
 		prep = None
