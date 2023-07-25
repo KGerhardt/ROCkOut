@@ -51,7 +51,7 @@ class pplacer_operator:
 		
 		for read in os.listdir(reads_loc):
 			read_basename = os.path.basename(read)
-			read_basename = read_basename.replace("_filtered.fasta", "")
+			read_basename = read_basename.replace(".filtered.fasta", "")
 			read_path = os.path.normpath(reads_loc + "/" + read)
 			ma_output = os.path.normpath(mafft_dir + "/"+read_basename+"_multiple_alignment.fasta")
 			jplace_out = os.path.normpath(jplace_dir + "/"+read_basename+".jplace")
