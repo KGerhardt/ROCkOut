@@ -11,19 +11,21 @@ pd.options.mode.chained_assignment = None
 #from modules.rocker_project_manager import project_manager
 
 class rocker_filterer:
-	def __init__(self, project_directory, filter_dir = "", reads = [], basenames = []):
+	def __init__(self, project_directory, filter_dir = "", reads = [], basenames = [], raws = []):
 		self.proj_dir = project_directory
 		self.filt_dir = filter_dir
 		self.model_dir = os.path.normpath(self.proj_dir + "/final_outputs/model/")
 		self.reads = reads
 		self.basenames = basenames
+		self.raws = raws
 		
 		self.alns = self.filt_dir + "/alignments"
 		self.orig = self.filt_dir + "/original_reads"
 		
-		self.passing = self.filt_dir + "/ROCkOut_passing_alignments"
-		self.failing = self.filt_dir + "/ROCkOut_failing_alignments"
-		self.fastas = self.filt_dir + "/ROCkOut_passing_read_fastas"
+		self.passing = os.path.normpath(self.filt_dir + "/ROCkOut_passing_alignments")
+		self.failing = os.path.normpath(self.filt_dir + "/ROCkOut_failing_alignments")
+		self.fastas = os.path.normpath(self.filt_dir + "/ROCkOut_passing_read_fastas")
+		self.failing_fastas = os.path.normpath(self.filt_dir + "/ROCkOut_failing_read_fastas")
 		
 		#self.plot = option
 		self.filter_file = None
@@ -54,13 +56,15 @@ class rocker_filterer:
 		self.failing_alns = None
 	
 	def dir_prep(self):
-		out_base_p = os.path.normpath(self.filt_dir + "/ROCkOut_passing_alignments")
-		out_base_f = os.path.normpath(self.filt_dir + "/ROCkOut_failing_alignments")
-		if not os.path.exists(out_base_p):
-			os.mkdir(out_base_p)
-		if not os.path.exists(out_base_f):
-			os.mkdir(out_base_f)
-		
+		if not os.path.exists(self.passing):
+			os.mkdir(self.passing)
+		if not os.path.exists(self.failing):
+			os.mkdir(self.failing)
+		if not os.path.exists(self.fastas):
+			os.mkdir(self.fastas)
+		if not os.path.exists(self.failing_fastas):
+			os.mkdir(self.failing_fastas)
+			
 	def find_filters(self):
 		if os.path.exists(self.proj_dir):
 			if os.path.exists(self.model_dir):
@@ -326,6 +330,40 @@ class rocker_filterer:
 			
 		return None
 		
+	def filter_raws(self, selection, raw_file, output_file):
+		out = open(output_file, "w")
+		next_defline = ""
+		next_seqid = ""
+		next_seq = []
+		with open(raw_file) as fh:
+			for line in fh:
+				#print(line)
+				if line.startswith(">"):
+					if len(next_seq) > 0:
+						#print(next_seqid)
+						if next_seqid in selection:
+							next_seq = "".join(next_seq)
+							out.write(next_defline)
+							out.write(next_seq)
+							
+					next_seq = []
+					next_defline = line
+					next_seqid = line.strip()
+					next_seqid = next_seqid[1:]
+					next_seqid = next_seqid.split()[0]
+					
+				else:
+					next_seq.append(line)
+		
+		#Final iteration
+		if len(next_seq) > 0:
+			if next_seqid in selection:
+				next_seq = "".join(next_seq)
+				out.write(next_defline)
+				out.write(next_seq)
+		
+		out.close()
+		
 	def filter_reads(self, read_df):
 		percent_alignment_matches = np.searchsorted(self.aln_positions, read_df["pct_aln"], side = 'left')
 		percent_alignment_matches -= 1
@@ -400,7 +438,8 @@ class rocker_filterer:
 		
 		return passing_reads, failing_reads
 
-
+	'''
+		
 	#This now needs to take the multiple alignment info.	
 	def parse_filter_dir(self):
 		if not os.path.exists(self.passing):
@@ -562,7 +601,8 @@ class rocker_filterer:
 					out.write(current_seq)
 			
 			out.close()
-			
+	'''
+	
 	def run_filterer(self):
 		print("Loading filter resources...")
 		self.dir_prep()
@@ -572,15 +612,24 @@ class rocker_filterer:
 		self.load_filters()
 		
 		print("Filtering reads")
-		for r, b in zip(self.reads, self.basenames):
+		for r, b, raw in zip(self.reads, self.basenames, self.raws):
 			loaded_reads = self.load_reads_and_besthit(r)
 			p, f = self.filter_reads(loaded_reads)
 
-			outp = os.path.normpath(self.filt_dir+"/ROCkOut_passing_alignments/"+b+"_passing_reads.blast.txt")
-			outf = os.path.normpath(self.filt_dir+"/ROCkOut_failing_alignments/"+b+"_failing_reads.blast.txt")
+			outp = os.path.normpath(self.passing + "/" +b+".ROCkOut_passing.txt")
+			outf = os.path.normpath(self.failing+ "/" +b+".ROCkOut_failing.txt")
 			p.to_csv(outp, sep = "\t", index = False, header = None)
 			f.to_csv(outf, sep = "\t", index = False, header = None)
 
+			passing_readnames = set(p["read"])
+			failing_readnames = set(f["read"])
+			p = None
+			f = None
+						
+			pass_raw = os.path.normpath(self.fastas+"/"+b+".filtered.fasta")
+			fail_raw = os.path.normpath(self.failing_fastas+"/"+b+".filtered.fasta")
+			self.filter_raws(passing_readnames, raw, pass_raw)
+			self.filter_raws(failing_readnames, raw, fail_raw)
 
 		if self.filter_file is None:
 			print("ROCkOut filter file not found! Quitting")
@@ -606,20 +655,22 @@ def do_filter(parser, opts):
 		
 	reads = []
 	basenames = []
+	raws = []
 	for f in os.listdir(os.path.normpath(filter_dir+"/alignments")):
 		reads.append(os.path.normpath(filter_dir+"/alignments/"+f))
 		basenames.append(get_bn(f))
+	for f in os.listdir(os.path.normpath(filter_dir+"/original_reads")):
+		raws.append(os.path.normpath(filter_dir+"/original_reads/"+f))
 		
-	print(project_dir)
-	print(filter_dir)
-	for r, b in zip(reads, basenames):
-		print(r, b)
-	
+	reads.sort()
+	basenames.sort()
+	raws.sort()
+		
 	if project_dir is None or filter_dir is None:
 		print("ROCkOut needs both a project directory and a filter directory to filter reads.")
 		parser.print_help()
 		sys.exit()
 	else:
-		mn = rocker_filterer(project_dir, filter_dir, reads, basenames)
+		mn = rocker_filterer(project_dir, filter_dir, reads, basenames, raws)
 		mn.run_filterer()
 		
