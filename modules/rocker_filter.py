@@ -11,11 +11,12 @@ pd.options.mode.chained_assignment = None
 #from modules.rocker_project_manager import project_manager
 
 class rocker_filterer:
-	def __init__(self, project_directory, filter_dir = ""):
+	def __init__(self, project_directory, filter_dir = "", reads = [], basenames = []):
 		self.proj_dir = project_directory
 		self.filt_dir = filter_dir
 		self.model_dir = os.path.normpath(self.proj_dir + "/final_outputs/model/")
-
+		self.reads = reads
+		self.basenames = basenames
 		
 		self.alns = self.filt_dir + "/alignments"
 		self.orig = self.filt_dir + "/original_reads"
@@ -127,9 +128,9 @@ class rocker_filterer:
 			self.offsets[p] = offset_list	
 		
 	def load_filters(self):
-		self.filter_matrix, self.bit_positions = self.import_filter(mn.filter_file)
-		self.idpos_filtmat, self.id_positions =self.import_filter(mn.id_filter_file)
-		self.idaln_filtmat, self.aln_positions = self.import_filter(mn.idaln_file)
+		self.filter_matrix, self.bit_positions = self.import_filter(self.filter_file)
+		self.idpos_filtmat, self.id_positions =self.import_filter(self.id_filter_file)
+		self.idaln_filtmat, self.aln_positions = self.import_filter(self.idaln_file)
 		
 	def import_filter(self, file):
 		per_rl_x = {}
@@ -564,9 +565,23 @@ class rocker_filterer:
 			
 	def run_filterer(self):
 		print("Loading filter resources...")
-		self.find_filter()
+		self.dir_prep()
 		self.find_ma()
+		self.get_offsets()
+		self.find_filters()
+		self.load_filters()
 		
+		print("Filtering reads")
+		for r, b in zip(self.reads, self.basenames):
+			loaded_reads = self.load_reads_and_besthit(r)
+			p, f = self.filter_reads(loaded_reads)
+
+			outp = os.path.normpath(self.filt_dir+"/ROCkOut_passing_alignments/"+b+"_passing_reads.blast.txt")
+			outf = os.path.normpath(self.filt_dir+"/ROCkOut_failing_alignments/"+b+"_failing_reads.blast.txt")
+			p.to_csv(outp, sep = "\t", index = False, header = None)
+			f.to_csv(outf, sep = "\t", index = False, header = None)
+
+
 		if self.filter_file is None:
 			print("ROCkOut filter file not found! Quitting")
 			sys.exit()
@@ -574,42 +589,32 @@ class rocker_filterer:
 			print("ROCkOut multiple alignment file not found! Quitting")
 			sys.exit()
 			
-		self.get_filter()
-		self.interpolate()
-	
-		#self.plot_filter()
-		self.parse_filter_dir()
-		
-		print("Filtering reads...")
-		self.run_filter_blast_tabular()
+def get_bn(file):
+	b = os.path.basename(file)
+	while b != os.path.splitext(b)[0]:
+		b = os.path.splitext(b)[0]
+	return b
 	
 def do_filter(parser, opts):
 	project_dir = opts.dir
 	filter_dir = opts.filter_dir
+	
+	if filter_dir is None or project_dir is None:
+		print("Can't proceed without a project directory and filter directory.")
+		parser.print_help()
+		sys.exit()
+		
+	reads = []
+	basenames = []
+	for f in os.listdir(os.path.normpath(filter_dir+"/alignments")):
+		reads.append(os.path.normpath(filter_dir+"/alignments/"+f))
+		basenames.append(get_bn(f))
 	
 	if project_dir is None or filter_dir is None:
 		print("ROCkOut needs both a project directory and a filter directory to filter reads.")
 		parser.print_help()
 		sys.exit()
 	else:
-		mn = rocker_filterer(project_dir, filter_dir)
+		mn = rocker_filterer(project_dir, filter_dir, reads, basenames)
 		mn.run_filterer()
 		
-proj = sys.argv[1]
-reads = sys.argv[2]
-fd = sys.argv[3]
-	
-mn = rocker_filterer(proj, filter_dir = fd)
-mn.dir_prep()
-mn.find_ma()
-mn.get_offsets()
-mn.find_filters()
-mn.load_filters()
-
-loaded_reads = mn.load_reads_and_besthit(reads)
-p, f = mn.filter_reads(loaded_reads)
-
-outp = os.path.normpath(fd+"/ROCkOut_passing_alignments/passing_reads.blast.txt")
-outf = os.path.normpath(fd+"/ROCkOut_failing_alignments/failing_reads.blast.txt")
-p.to_csv(outp, sep = "\t", index = False, header = None)
-f.to_csv(outf, sep = "\t", index = False, header = None)
