@@ -609,6 +609,11 @@ def do_filter(parser, opts):
 	for f in os.listdir(os.path.normpath(filter_dir+"/alignments")):
 		reads.append(os.path.normpath(filter_dir+"/alignments/"+f))
 		basenames.append(get_bn(f))
+		
+	print(project_dir)
+	print(filter_dir)
+	for r, b in zip(reads, basenames):
+		print(r, b)
 	
 	if project_dir is None or filter_dir is None:
 		print("ROCkOut needs both a project directory and a filter directory to filter reads.")
