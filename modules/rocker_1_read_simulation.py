@@ -12,6 +12,7 @@ import tarfile
 
 from .rocker_project_manager import project_manager
 from .rocker_progress_tracker import progress_tracker
+from .reads_labeller import protein_trawler
 
 #from rocker_project_manager import project_manager
 #from rocker_progress_tracker import progress_tracker
@@ -83,6 +84,8 @@ class read_manager:
 		self.reference_lengths = {}
 		self.reference_prots = []
 		self.reference_prots_dict = {}
+		
+		self.read_labeller = None
 		
 		#Database stuff
 		#raw = self.prep_dir(out_base, "raw_reads/")
@@ -157,12 +160,11 @@ class read_manager:
 				self.coord_starts.append(cs)
 				self.coord_ends.append(ce)
 				
-				
 				bn = os.path.basename(proteome)
 				while bn != os.path.splitext(bn)[0]:
 					bn = os.path.splitext(bn)[0]
 				output_aln = "/".join([self.project.project_base, "positive", item, "proteome_vs_references", bn + ".protein_alignment.blast.txt"])
-				output_coords = "/".join([self.project.project_base, "positive", item, "probable_target_coords", bn + ".coords.txt"])
+				output_coords = "/".join([self.project.project_base, "positive", item, "probable_target_coords", bn + ".probable_targets_coords.txt"])
 				
 				next_pa = (item, proteome, bn, output_aln, output_coords)	
 				self.proteome_args.append(next_pa)
@@ -378,13 +380,11 @@ class read_manager:
 		#Collect per ID coords to match regular coords.
 		self.per_ID_coords = final_results
 		
+		self.read_labeller = protein_trawler(self.rocker_directory)
+		self.read_labeller.load_labels()
+		
 	def make_prep(self):
-		#print(self.genomes_to_sim)
-		#print(self.genlens)
-		#print(self.coords_files)
-		#print(self.per_ID_coords)
-	
-		num = 1
+		num = 1 #Arbitrary read simulation index for bbtools.
 		
 		for prot, l, cs, ce in zip(self.genomes_to_sim, self.genlens, self.coord_starts, self.coord_ends):
 			base = prot.split("/genomes/")	
@@ -408,7 +408,7 @@ class read_manager:
 					next_item = one_protein(base[0], self.sim_arg_template, num, prot, 
 					triplet, self.shared_db, cs, ce, self.use_blast, 
 					self.reference_prots_dict, #Real coords
-					self.per_ID_coords,) #Homology coords
+					self.per_ID_coords, self.read_labeller,) #Homology coords
 					self.items_to_sim.append(next_item)
 					
 				num += 1
@@ -518,18 +518,22 @@ class probable_target_finder:
 				label = "discovered_match_through_homology"
 				
 			if qid not in self.ref_prots: #We don't need to check already referenced items
+			
 				target = segs[1]
 				tgt_length = self.reflens[target]
 				pid = float(segs[2])
 				aln_len = int(segs[3])
 				pct_aln = round((aln_len/tgt_length) * 100, 2)
 				
+				#if self.parent == "F4GW25_PUSST":
+				#	print(target, tgt_length, pct_aln, pid, label)
+				
 				if self.reference_genome not in self.probable_hits:
 					self.probable_hits[self.reference_genome] = {}
 				
-				if pct_aln >= 90.0 and pid >= 50.0: #90% alignment length and 50 pct. ID
+				if pct_aln >= 70.0 and pid >= 50.0: #70% alignment length and 50 pct. ID
 					self.probable_hits[self.reference_genome][qid] = self.protein_metadata[qid]
-					print(self.reference_genome, self.parent, qid, *self.protein_metadata[qid], target, pct_aln, pid, label, sep = "\t", file = outwriter)
+					#print(self.reference_genome, self.parent, qid, *self.protein_metadata[qid], target, pct_aln, pid, label, sep = "\t", file = outwriter)
 			
 		outwriter.close()
 		fh.close()
@@ -551,9 +555,12 @@ class probable_target_finder:
 			
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
-				alignment_database, coord_starts, coord_ends, use_blast, target_coords, probable_coords, ):
+				alignment_database, coord_starts, coord_ends, use_blast, target_coords, probable_coords, 
+				read_labeller):
 				
 		self.base = directory_base
+		
+		self.labeller = read_labeller
 		
 		self.simulation_index = build_num
 		self.simlen = sim_length
@@ -640,7 +647,6 @@ class one_protein:
 				self.homology_ends.append(end)
 				self.homology_names.append(protein_id)
 				
-	
 	def simulate_reads(self):
 		next_gen = self.template.format(min = self.simlen[0],
 										#med = self.simlen[1],
@@ -735,7 +741,7 @@ class one_protein:
 				
 				in_seq = False
 				try:
-					id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
+					read_id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
 				except:
 					print("Could not parse line.")
 				
@@ -743,25 +749,18 @@ class one_protein:
 				#mn, mx = min(fr, to), max(fr, to)
 				mn, mx = min([fr, to]), max([fr, to])
 				
-				
 				#No interference with ROCker's split scheme.
 				genome_id = genome_id.replace(';', '_')
 				
+				#label_read(self, genome, read_start, read_end, read_ID)
+				printable_name = self.labeller.tag_read(self.ref_genome, mn, mx, read_id, comp, genome_id)
+				
+				'''
+				continue
+				#Skip?
+				
 				overlap_bp = 0
 				pct_overlap = 0.0
-				
-				'''
-				There is an error in the tagging of appropriate coordinates here
-				
-				Reads that overlap the stat or end of a gene window are not being included because they are not entirely within the window.
-				
-				What we need is to allow reads to have either end within a window and that's OK.
-				'''
-					
-				#We use the end to figure out if there's an overlap with the gene start to the gene start.
-				#start_window = np.searchsorted(self.coord_starts, mx, side = 'right')
-				#We use the start against the ends to figure out if there's an overlap with the gene end.
-				#end_window = np.searchsorted(self.coord_ends, mn, side = 'left')
 				
 				tagged_name = ';'.join([id, str(mn), str(mx), comp, genome_id])
 				
@@ -826,7 +825,7 @@ class one_protein:
 					pos_ct += 1
 				else:
 					if is_foreign_target:
-						printable_name = ">" + tagged_name + ";" + foreign_target_name +  ";Foreign_Target"
+						printable_name = ">" + tagged_name + ";" + foreign_target_name + ";Foreign_Target"
 					else:
 						if is_probable_target:
 							printable_name = ">" + tagged_name + ";" + homol_name + ";Homology_Target"
@@ -834,9 +833,10 @@ class one_protein:
 						else:
 							printable_name = ">" + tagged_name + ";Non_Target"
 							off_ct += 1
+				'''
 				
+				#print(printable_name)
 				print(printable_name, file = out)
-				
 				
 			else:
 				if not malformed:

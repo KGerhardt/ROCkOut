@@ -7,6 +7,8 @@ import shutil
 
 import argparse
 
+import tarfile
+
 '''
 This script is a revision on the original ROCker downloading functionality.
 '''
@@ -217,7 +219,7 @@ class download_manager:
 						'''
 						
 						no_trans = item_set[:-1]
-						print(*no_trans, file = fh)
+						print(*no_trans, sep = "\t", file = fh)
 						successful_tags.append(p)
 						
 				fh.close()
@@ -434,6 +436,9 @@ class uniprot_downloader:
 		self.outdir = os.path.normpath(outdir) + "/"
 		self.posdir = os.path.normpath(outdir + "/" + "positive") + "/"
 		self.negdir = os.path.normpath(outdir + "/" + "negative") + "/"
+		
+		self.pos_file = positives
+		self.neg_file = negatives
 		self.positive_set = positives
 		self.negative_set = negatives
 		self.sets_from_files()
@@ -561,7 +566,58 @@ class uniprot_downloader:
 					print(neg, "negative", "succeeded", sep = "\t", file = errlog)
 			
 		errlog.close()
+		
+	def snapshot(self):
+		print("Creating project snapshot...")
 
+		snap_dir = os.path.normpath(self.outdir+"/final_outputs/snapshot/")
+		if not os.path.exists(snap_dir):
+			os.makedirs(snap_dir, exist_ok = True)
+			
+		positive_dir = os.path.normpath(self.outdir + "/positive")
+		negative_dir = os.path.normpath(self.outdir + "/negative")
+		shared_dir = os.path.normpath(self.outdir + "/shared_files/downloads")
+		if self.pos_file is not None:
+			if os.path.exists(self.pos_file):
+				shutil.copy(self.pos_file, shared_dir)
+		if self.neg_file is not None:
+			if os.path.exists(self.neg_file):
+				shutil.copy(self.neg_file, shared_dir)
+			
+		snap_file = os.path.normpath(snap_dir + "/"+"ROCkOut_Snapshot.tar.gz")
+		tar_writer = tarfile.open(snap_file, "w:gz")
+		if os.path.exists(positive_dir):
+			print("Adding positive UniProt IDs")
+			tar_writer.add(positive_dir, arcname = positive_dir, filter = snapshot_exclusions)
+		if os.path.exists(negative_dir):
+			print("Adding negative UniProt IDs")
+			tar_writer.add(negative_dir, arcname = negative_dir, filter = snapshot_exclusions)
+		if os.path.exists(shared_dir):
+			print("Adding logs")
+			tar_writer.add(shared_dir, arcname = shared_dir, filter = snapshot_exclusions)
+		
+		tar_writer.close()
+		
+		print("Project snapshot complete!")
+		
+	
+def snapshot_exclusions(tarinfo):
+	#print(dir(tarinfo))
+	#Directories to exclude
+	excl = ["aligned_reads", "alignment_log", "bbmap_log",
+				"probable_target_coords", "proteome_vs_references",
+				"raw_reads", "tagged_reads"]
+	OK_to_include = True
+	for e in excl:
+		if e in tarinfo.name:
+			OK_to_include = False
+		
+	if OK_to_include:
+		return tarinfo
+	else:
+		return None
+	
+		
 def options():
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 			description='''	''')
@@ -602,7 +658,7 @@ def download(parser, opts):
 	dl.prepare_downloaders()
 	dl.execute_downloads()
 	dl.check_results()
-	
+	dl.snapshot()
 
 
 
