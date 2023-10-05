@@ -68,11 +68,19 @@ def options(action):
 	'''
 		
 	if action == "refine":
-		parser.description = "ROCkOut refine GUI mode"
+		parser.description = "ROCkOut refine. Build a ROCkOut model in your project directory. Requires having run download and build first."
+		parser.add_argument('-c', '--cutoff', dest = "cutoff", default = "balanced", 
+							help = 'Method for breaking ties in creating a ROCkOut filter.\n\tfn+ - strongly favor false negatives, reduce false positives\n\tfn favor false negatives, reduce false positives\n\tbalanced [default] - favor neither false positives nor false negatives\n\tfp - favor false positives, reduce false negatives\n\tfp+ strongly favor false positives, reduce false negatives')
+		parser.add_argument('--skip_pplacer', dest = 'skip_pplacer', action = 'store_true', help = 'Skip generating a pplacer phylogenetic reference package. If you keep the same positive and negative sequences, you only have to run pplacer once when using ROCkOut refine. That takes a while, and this lets you skip that in model iterations.')
+		parser.add_argument('--plot_all_reads', dest = 'big_viz', action = 'store_true', help = 'Show every single read on visualizations. Default behavior subsamples to no more than 12k reads. Visualization files can become excessively large and nonresponsive with very large datasets: 12k is enough to see your model clearly, but you can plot everything.')
 		
-	if action == "refine-non-interactive":
-		parser.description = "ROCkOut refine non-interactive mode"
-	
+	if action == "extract":
+		parser.description = "ROCkOut extract will collect best hits for the simulated metagenomes (one file per read length) and return either alignments and/or raw reads for you."
+		parser.add_argument('-a', '--alignments_prefix',  dest = 'aln_base', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
+		parser.add_argument('-r', '--raw_reads_prefix',  dest = 'raw_base', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
+
+
+		
 	if action == "align":
 		parser.description = "ROCkOut align. Align one or several reads to the positive protein set of a ROCkOut project. Requires downloading a complete ROCkOut model or running ROCkOut through the refine module on your project, first."
 		parser.add_argument('-i', '--input_reads',  dest = 'reads', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
@@ -172,13 +180,12 @@ def run_build(parser, opts):
 	build_project(parser, opts)
 	
 def run_refine(parser, opts):
-	from modules.rocker_3_dash import run_rocker_dash
-	#run_rocker_dash(parser, opts)
-	run_rocker_dash()
+	from modules.rocker_2_cross_validated_refiner import build_rockout_model
+	build_rockout_model(parser, opts)
 	
-def run_refine_non_interactive(parser, opts):
-	from modules.rocker_4_refiner import non_interactive
-	non_interactive(parser, opts)
+def run_extract(parser, opts):
+	from modules.rocker_3_extract_reads import extract_reads
+	extract_reads(parser, opts)
 	
 #Align reads to a project's proteins
 def run_align(parser, opts):
@@ -194,10 +201,10 @@ def run_pplacer(parser, opts):
 	phylomap_place(parser, opts)
 
 def main():
-	valid_actions = ['download', 'build', 'refine', 'align', 'filter', 'place']
+	valid_actions = ['download', 'build', 'refine', 'extract', 'align', 'filter', 'place']
 
 	if len(sys.argv) < 2:
-		print("ROCkOut needs to be given an action! One of:", valid_actions)
+		print("ROCkOut needs to be given an action! One of:\n", "\n\t".join(valid_actions))
 		sys.exit("You can also do rocker install-check to see if all of the appropriate dependencies are installed.")
 	
 	action = sys.argv[1]
@@ -212,7 +219,8 @@ def main():
 	
 	if action not in valid_actions:
 		print("Action '" + str(action) + "' not recognized.")
-		sys.exit("The action must be one of:", valid_actions)
+		print("ROCkOut needs to be given an action! One of:", valid_actions)
+		sys.exit()
 		
 	parser, opts = options(action)
 	
@@ -222,11 +230,11 @@ def main():
 	if action == "build":
 		run_build(parser, opts)
 		
-	#if action == "refine":
-	#	run_refine(parser, opts)
-		
 	if action == "refine":
-		run_refine_non_interactive(parser, opts)
+		run_refine(parser, opts)
+		
+	if action == "extract":
+		run_extract(parser, opts)
 		
 	if action =="align":
 		run_align(parser, opts)
