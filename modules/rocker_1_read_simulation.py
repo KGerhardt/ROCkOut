@@ -10,6 +10,8 @@ import argparse
 
 import tarfile
 
+from time import sleep
+
 from .rocker_project_manager import project_manager
 from .rocker_progress_tracker import progress_tracker
 from .reads_labeller import protein_trawler
@@ -423,6 +425,9 @@ class read_manager:
 		for result in pool.imap_unordered(run_sim, self.items_to_sim):
 			prog_bar.update()
 		pool.close()
+		pool.join()
+		
+		sleep(1.5)
 		
 		#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
 		if len(os.listdir("ref/genome/")) == 0:
