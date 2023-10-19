@@ -76,8 +76,9 @@ def options(action):
 		
 	if action == "extract":
 		parser.description = "ROCkOut extract will collect best hits for the simulated metagenomes (one file per read length) and return either alignments and/or raw reads for you."
-		parser.add_argument('-a', '--alignments_prefix',  dest = 'aln_base', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
-		parser.add_argument('-r', '--raw_reads_prefix',  dest = 'raw_base', default = None, help =  'A comma-sep list of paths to nucleotide FASTA format reads to align to a ROCkOut project. ')
+		parser.add_argument('-a', '--alignments_prefix',  dest = 'aln_base', default = None, help =  'Prefix for collected alignments; if omitted, no aligned read files will be produced')
+		parser.add_argument('-r', '--raw_reads_prefix',  dest = 'raw_base', default = None, help =  'Prefix for collected FASTA format reads; if omitted, no raw read files will be produced')
+		parser.add_argument('--all_reads',  dest = 'no_besthit', action='store_true', help =  'Print all reads, not just best hits.')
 
 
 		
