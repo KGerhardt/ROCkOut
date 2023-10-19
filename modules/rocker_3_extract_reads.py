@@ -11,12 +11,13 @@ except:
 	from reads_labeller import protein_trawler
 	
 class read_extractor:
-	def __init__(self, directory, aln_prefix, raw_prefix):
+	def __init__(self, directory, aln_prefix, raw_prefix, skip_bh):
 		self.base = os.path.normpath(directory)
 		self.labeller = protein_trawler(self.base, splits = 5, train_fraction = 0.6)
 		self.manager = project_manager(self.base)
 		self.aln_pre = aln_prefix
 		self.raw_pre = raw_prefix
+		self.skip_bh = skip_bh
 		
 		
 	def parse_project_directory(self):
@@ -39,7 +40,7 @@ class read_extractor:
 				out_raw = open(os.path.normpath('_'.join(raw_dat)), "w")
 			
 			for genome in self.labeller.read_files[read_length]:
-				alns, raws = self.labeller.collect_reads_and_raws(read_length, genome)
+				alns, raws = self.labeller.collect_reads_and_raws(read_length, genome, self.skip_bh)
 				if self.aln_pre is not None:
 					alns.to_csv(path_or_buf = out_aln, sep = "\t", index = False, header = False)
 				if self.raw_pre is not None:
@@ -62,10 +63,15 @@ def extract_reads(parser, opts):
 
 	dirname = opts.dir
 	if dirname is None:
-		sys.exit("ROCkOut needs a directory name to build a model!")
+		parser.print_help()
+		print("")
+		sys.exit("ROCkOut needs a directory name to build a model!\n")
+		
 	
 	aln_prefix = opts.aln_base
 	raw_prefix = opts.raw_base
+	
+	skip_besthit = opts.no_besthit
 	
 	if aln_prefix is None and raw_prefix is None:
 		print("Choose at least one filename prefix to supply using either or both of:")
@@ -75,6 +81,7 @@ def extract_reads(parser, opts):
 				
 	mn = read_extractor(directory = dirname, 
 						aln_prefix = aln_prefix,
-						raw_prefix = raw_prefix)
+						raw_prefix = raw_prefix,
+						skip_bh = skip_besthit)
 	mn.run()
 

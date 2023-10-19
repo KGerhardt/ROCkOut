@@ -402,7 +402,7 @@ class protein_trawler:
 		return df
 	
 	#LOAD AND BESTHIT ONE READ FILE, FILTERING TO ONLY VALID TARGETS
-	def load_read_file(self, read_file, origin_genome):
+	def load_read_file(self, read_file, origin_genome, skip_besthit = False):
 		#An alignment record has these fields
 		#read_id = 496;1125999;1126099;0;0.0;+;ENA|CP002663|CP002663.1;origin_protein=NA;Non_Target	
 		#target = UNIPROT__E3D1H3_NEIM7__E3D1H3_NEIM7__CP001561.3252	
@@ -425,7 +425,9 @@ class protein_trawler:
 						usecols = [0, 1, 2, 3, 8, 9, 11, 12, 15],
 						names = ["read_id", "target", "pct_id", "aln_len", "alignment_min_pos", "alignment_max_pos", "bitscore", "query_length", "pct_overlap"])
 		
-		df = self.besthit_reads(df)
+		if not skip_besthit:
+			df = self.besthit_reads(df)
+		
 		#Convert to amino acid lengths
 		#df['query_length'] = df['query_length']/3
 		#Calculate percent alignment with conversion of readlen from AA to nt
@@ -523,8 +525,8 @@ class protein_trawler:
 			#RESET INDEX OR IT REPEATS INDEX NUMBERS MANY TIMES
 			self.datasets[read_length] = self.datasets[read_length].reset_index(drop = True)
 	
-	def collect_reads_and_raws(self, read_length, genome):
-		next_set_of_alignments = self.load_read_file(self.read_files[read_length][genome], genome)
+	def collect_reads_and_raws(self, read_length, genome, skip_besthit = False):
+		next_set_of_alignments = self.load_read_file(self.read_files[read_length][genome], genome, skip_besthit)
 		
 		acceptable_reads = set(next_set_of_alignments['read_id'])
 		
