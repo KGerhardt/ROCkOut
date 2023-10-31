@@ -3,6 +3,7 @@ import argparse
 import os
 import numpy as np
 
+import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
@@ -30,6 +31,7 @@ class rocker_filterer:
 		self.failing = os.path.normpath(self.filt_dir + "/ROCkOut_failing_alignments")
 		self.fastas = os.path.normpath(self.filt_dir + "/ROCkOut_passing_read_fastas")
 		self.failing_fastas = os.path.normpath(self.filt_dir + "/ROCkOut_failing_read_fastas")
+		self.viz = os.path.normpath(self.filt_dir + "/visualizations")
 		
 		#self.plot = option
 		self.filter_file = None
@@ -68,6 +70,9 @@ class rocker_filterer:
 			os.mkdir(self.fastas)
 		if not os.path.exists(self.failing_fastas):
 			os.mkdir(self.failing_fastas)
+			
+		if not os.path.exists(self.viz):
+			os.mkdir(self.viz)
 			
 	def find_filters(self):
 		if os.path.exists(self.proj_dir):
@@ -209,15 +214,6 @@ class rocker_filterer:
 				cutoff_matrix[start + i] = cutoff_matrix[start] + (step_sizes * i)
 			
 		return cutoff_matrix
-	
-	def plot_filter(self):
-		as_pandas = pd.DataFrame(self.filter_matrix)
-		fig = go.Figure(data=[go.Surface(z=as_pandas.values)])
-		fig.update_layout(scene = dict(
-							xaxis_title='Position in Protein',	
-							yaxis_title='Read Length',
-							zaxis_title='Bitscore Cutoff'))
-		fig.write_html(os.path.normpath("ROCkOut_surface.html"))
 
 	def load_reads(self, reads_file):
 		df = pd.read_csv(reads_file, sep = "\t", header=None, 
@@ -262,35 +258,38 @@ class rocker_filterer:
 		return df
 		
 	def label_sim_reads(self, read_names, assignments):
-		outs = {"tp":0, "fp":0, "fn":0, "tn":0}
+		try:
+			outs = {"tp":0, "fp":0, "fn":0, "tn":0}
 
-		for read, guessed_positive in zip(read_names, assignments):		
-			segs = read.split(";")
-			label = segs[-1]
-			#print(label, guessed_positive)
-			
-			if guessed_positive:
-				if label == "Positive":
-					outs["tp"] += 1
+			for read, guessed_positive in zip(read_names, assignments):		
+				segs = read.split(";")
+				label = segs[-1]
+				#print(label, guessed_positive)
+				
+				if guessed_positive:
+					if label == "Positive":
+						outs["tp"] += 1
+					else:
+						outs["fp"] += 1
 				else:
-					outs["fp"] += 1
-			else:
-				if label == "Positive":
-					outs["fn"] += 1
-				else:
-					outs["tn"] += 1
-			
-			
-		total_size = outs['tn']+outs['tp']+outs["fp"]+outs["fn"]
-		fpr = outs["fp"] / (outs["fp"]+outs["tn"])
-		fnr = outs["fn"] / (outs["fn"] + outs["tp"])
-		
-		print("Read count:", total_size)
-		print(outs)
-		print("Acc.", "%.4f" % ((outs['tn']+outs['tp'])/total_size), "%")
-		print("FPR", "%.4f" % (fpr*100), "%")
-		print("FNR", "%.4f" % (fnr*100), "%")
-		print("F1 ", "%.4f" % (2*outs['tp'] / (2*outs['tp'] + outs['fp']+outs['fn'])))
+					if label == "Positive":
+						outs["fn"] += 1
+					else:
+						outs["tn"] += 1
+				
+				
+				total_size = outs['tn']+outs['tp']+outs["fp"]+outs["fn"]
+				fpr = outs["fp"] / (outs["fp"]+outs["tn"])
+				fnr = outs["fn"] / (outs["fn"] + outs["tp"])
+				
+				print("Read count:", total_size)
+				print(outs)
+				print("Acc.", "%.4f" % ((outs['tn']+outs['tp'])/total_size), "%")
+				print("FPR", "%.4f" % (fpr*100), "%")
+				print("FNR", "%.4f" % (fnr*100), "%")
+				print("F1 ", "%.4f" % (2*outs['tp'] / (2*outs['tp'] + outs['fp']+outs['fn'])))
+		except:
+			pass
 
 		return None
 		
@@ -391,10 +390,44 @@ class rocker_filterer:
 		read_df["passed_filters_out_of_3"] = vote_count
 		read_df["passes_ensemble"] = (vote_count >= 2)
 		
+		#Viz stuff
+		if True:
+			average_rl = int(np.mean(read_df['qlen']))
+			average_rl_index = average_rl - self.min_readlen
+			nearest_bitpos =  self.filter_matrix[average_rl_index, :]
+			nearest_idpos = self.idpos_filtmat[average_rl_index, :]
+			nearest_idaln = self.idaln_filtmat[average_rl_index, :]
+			read_df['ma_pos'] = multiple_alignment_positions
+			
+			cat = []
+			for read, guessed_positive in zip(read_df["read"], read_df["passes_ensemble"]):
+				segs = read.split(";")
+				label = segs[-1]
+				#print(label, guessed_positive)
+				
+				if guessed_positive:
+					if label == "Positive":
+						cat.append("True Positive")
+					else:
+						cat.append("False Positive")
+				else:
+					if label == "Positive":
+						cat.append("False Negative")
+					else:
+						cat.append("True Negative")
+			
+			read_df['label'] = cat 
+			
+			self.plot_results(read_df, 
+								nearest_bitpos, 
+								nearest_idpos, 
+								nearest_idaln)
+		
 		passing_reads = read_df[read_df["passed_filters_out_of_3"] >= 2]
 		failing_reads = read_df[read_df["passed_filters_out_of_3"] < 2]
 		
-		if self.sim_check:
+		#if self.sim_check:
+		if False:
 			print("Bitscore vs. position in MA")
 			self.label_sim_reads(read_df["read"], read_df["passes_bitscore_v_pos"])
 
@@ -409,6 +442,24 @@ class rocker_filterer:
 			
 		return passing_reads, failing_reads
 
+	def plot_results(self, df, bp, ip, ia):
+		bsl = px.line(x = self.bit_positions, y = bp)
+		pil = px.line(x = self.id_positions, y = ip)
+		ial = px.line(x = self.aln_positions, y = ia)
+
+		bs = px.scatter(df, x = 'ma_pos', y = 'bs', color = "label", hover_data=["read"])
+		bs = go.Figure(data=bs.data + bsl.data)
+		bs.write_html("bitscore_filter_plot.html")
+		
+		id = px.scatter(df, x = 'ma_pos', y = 'pctid', color = "label", hover_data=["read"])
+		id = go.Figure(data=id.data + pil.data)
+		id.write_html("pct_id_filter_plot.html")
+		
+		idaln = px.scatter(df, x = 'pct_aln', y = 'pctid', color = "label", hover_data=["read"])
+		idaln = go.Figure(data=idaln.data + ial.data)
+		idaln.write_html("id_aln_filter_plot.html")
+		
+		
 	
 	def output_files(self, df, alignments_out, raws_in, raws_out):
 		df.to_csv(alignments_out, sep = "\t", index = False, header = None)
@@ -492,7 +543,7 @@ def do_filter(parser, opts):
 		parser.print_help()
 		sys.exit()
 	else:
-		mn = rocker_filterer(project_dir, filter_dir, reads, basenames, raws)
+		mn = rocker_filterer(project_dir, filter_dir, reads, basenames, raws, check_sim = False)
 		mn.load_resources()
 		print("Filtering reads")
 
