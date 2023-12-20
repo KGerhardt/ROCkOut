@@ -73,6 +73,7 @@ def options(action):
 							help = 'Method for breaking ties in creating a ROCkOut filter.\n\tfn+ - strongly favor false negatives, reduce false positives\n\tfn favor false negatives, reduce false positives\n\tbalanced [default] - favor neither false positives nor false negatives\n\tfp - favor false positives, reduce false negatives\n\tfp+ strongly favor false positives, reduce false negatives')
 		parser.add_argument('--skip_pplacer', dest = 'skip_pplacer', action = 'store_true', help = 'Skip generating a pplacer phylogenetic reference package. If you keep the same positive and negative sequences, you only have to run pplacer once when using ROCkOut refine. That takes a while, and this lets you skip that in model iterations.')
 		parser.add_argument('--plot_all_reads', dest = 'big_viz', action = 'store_true', help = 'Show every single read on visualizations. Default behavior subsamples to no more than 12k reads. Visualization files can become excessively large and nonresponsive with very large datasets: 12k is enough to see your model clearly, but you can plot everything.')
+		parser.add_argument('--cv_method', dest = 'cv_meth', default = "sequence_outgroups", help = 'Create train test splits by [sequence_outgroups] - split whole proteins into train/test groups or [subsample] - sample simulated reads from all proteins')
 		
 	if action == "extract":
 		parser.description = "ROCkOut extract will collect best hits for the simulated metagenomes (one file per read length) and return either alignments and/or raw reads for you."
