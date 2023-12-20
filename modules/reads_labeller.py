@@ -164,7 +164,6 @@ class protein_trawler:
 		for genome in to_remove:
 			discard = foreign_matches.pop(genome)
 						
-						
 		return coordinate_dict, foreign_matches
 	
 	#Trawl positive and negative; combine results
@@ -480,6 +479,7 @@ class protein_trawler:
 			
 		df['classifier'] = true_labels
 		df['annotations'] = homolog_annotations
+		df['origin_genome'] = origin_genome
 				
 		return df
 		
@@ -561,7 +561,7 @@ class protein_trawler:
 				seed = np.random.randint(0, 1024)
 				self.seeds[rl][i] = seed
 				
-				train = self.datasets[rl].groupby('classifier').apply(pd.DataFrame.sample, frac=self.train_fraction, replace=False, random_state = seed).reset_index(level='classifier', drop=True)
+				train = self.datasets[rl].groupby('classifier').apply(pd.DataFrame.sample, frac=train_fraction, replace=False, random_state = seed).reset_index(level='classifier', drop=True)
 
 				self.train_indices[rl][i] = train.index
 				
@@ -570,15 +570,74 @@ class protein_trawler:
 								
 				self.test_indices[rl][i] = pd.Index(np.where(mask)[0], dtype = np.int64)
 		
-	def prepare_for_cross_validation(self, splits = 5, train_fraction = 0.4, seed = None):
+	def collect_train_test_splits_sequence_outgrps(self, splits = 5, train_fraction = 0.75, seed = None):
+		self.train_indices = {}
+		self.test_indices = {}
+		self.seeds = {}
+		for rl in self.datasets:
+			if rl not in self.train_indices:
+				self.train_indices[rl] = {}
+				self.test_indices[rl] = {}
+				self.seeds[rl] = {}
+				
+			ids = self.datasets[rl]['read_id']
+			unique_pairs = {}
+			key_vect = []
+			next_index = 0
+			genomes_in = []
+			genomes_out = []
+			origin_genomes = []
+
+			for id in ids:
+				segs = id.split(";")
+				this_origin_genome = segs[6]
+				if this_origin_genome not in unique_pairs:
+					unique_pairs[this_origin_genome] = next_index
+					next_index += 1
+				origin_genomes.append(this_origin_genome)	
+
+				key_vect.append(unique_pairs[this_origin_genome])
+			
+			key_vect = np.array(key_vect, dtype = np.int64)
+			unique_keys = np.unique(key_vect)
+			
+				
+			for i in range(0, splits):
+				train_keys = np.random.choice(unique_keys, size = int(len(unique_keys)*train_fraction), replace = False)
+				test_keys = set(unique_keys.tolist()) - set(train_keys.tolist())
+				test_keys = np.array(list(test_keys), dtype = np.int64)
+				#print(train_keys, test_keys)
+				
+				train_indices = np.in1d(key_vect, train_keys)
+				test_indices = np.where(train_indices == 0)[0]
+				train_indices = np.where(train_indices != 0)[0]
+				
+				train_indices = np.sort(train_indices)
+				test_indices = np.sort(test_indices)
+				
+				self.train_indices[rl][i] = pd.Index(train_indices)			
+				self.test_indices[rl][i] = pd.Index(test_indices)
+				
+				#test = self.datasets[rl].iloc[self.test_indices[rl][i]]
+				#genomes_out = np.unique(test['sequence_key'])
+				#print(np.sort(genomes_out))
+				
+		
+	def prepare_for_cross_validation(self, splits = 5, train_fraction = 0.4, seed = None, method = "sequence_outgroups"):
 		print("Collecting metadata")
 		self.load_labels()
 		print("Loading alignments")
 		self.locate_unique_read_sets()		
 		self.collect_and_label_reads()
 		print("Preparing train/test splits")
-		self.collect_train_test_splits(splits = 5, train_fraction = 0.4, seed = None)
-
+		
+		if method == "sequence_outgroups":
+			print("Creating train/test splits with subsets of input sequences")
+			self.collect_train_test_splits_sequence_outgrps(splits = 5, train_fraction = 0.75, seed = None)
+		if method == "subsample":
+			print("Creating train/test splits with subsamples of simulated reads")
+			self.collect_train_test_splits(splits = 5, train_fraction = 0.4, seed = None)
+			
 		print("Reads loaded!")
 		
 	def extract_prep(self):

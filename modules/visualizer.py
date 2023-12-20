@@ -24,6 +24,8 @@ class rockout_visualizer:
 		
 		total_rows = len(df.index)
 		frac = (a_reasonable_number/total_rows)
+		if frac > 1.0:
+			frac = 1.0
 		
 		#Proportionally sample categories down to 12k reads minus # positives
 		df = df.groupby('classifier').apply(pd.DataFrame.sample, frac=frac, replace=False).reset_index(level='classifier', drop=True)
@@ -37,11 +39,15 @@ class rockout_visualizer:
 	def visualize_reads_and_roc_curves(self, df, x, y, x_curve, y_curve, xname = "Position in Multiple Alignment", yname = "Bitscore"):
 		x = np.array(x)
 		y = np.array(y)
+		
 
 		reads_plot = px.scatter(df, x=df[x], y=df[y], 
 						color = df['classifier'], hover_data = [df['read_id'], df['target']],
+						#color = df['color'], hover_data = [df['read_id'], df['target']])
 						color_discrete_sequence = ["blue", "aqua", "darkorange", "green"], 
-						category_orders={"classifier": ["Positive", "Homology_Target", "Non_Target", "Negative"]})
+						category_orders={"classifier": ["Positive", "Homology_Target", "Non_Target", "Negative"]},
+						symbol = df['origin_genome'])
+						
 		cutoff_line = px.line(x = x_curve, y = y_curve)
 		
 		final_figure = go.Figure(data=reads_plot.data + cutoff_line.data)

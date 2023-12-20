@@ -23,7 +23,7 @@ from math import ceil
 
 #Class for cross-validating rockout models on the data and producing a final weighted model
 class cross_validate_refiner:
-	def __init__(self, directory, skip_pplace = False, cutoff_bias = "balanced", show_all_reads=False, verbose = False):
+	def __init__(self, directory, skip_pplace = False, cutoff_bias = "balanced", show_all_reads=False, verbose = False, method = "sequence_outgroups"):
 		self.base = os.path.normpath(directory)
 		self.final_outputs = os.path.normpath(directory+"/final_outputs")
 		
@@ -37,6 +37,7 @@ class cross_validate_refiner:
 		#Find misc. files including multiple alignments
 		self.manager.parse_project_directory()
 		self.manager.parse_aligns()
+		self.train_method = method
 
 		#Multiple alignment file for finding protein -> MA position offsets
 		self.ma_aa_file = None
@@ -170,7 +171,7 @@ class cross_validate_refiner:
 	#Filter to positive targets + besthit by bitscore
 	#Labels reads as positive/negative/homolog/off-target, collects annotations for homologs
 	def collect_reads_and_metadata(self):
-		self.labeller.prepare_for_cross_validation(splits = 5, train_fraction = 0.4, seed = None)
+		self.labeller.prepare_for_cross_validation(splits = 5, train_fraction = 0.4, seed = None, method = self.train_method)
 		for rl in self.labeller.datasets:
 			minimum_aln = np.min(self.labeller.datasets[rl]["pct_aln"])
 			max_aln = np.max(self.labeller.datasets[rl]["pct_aln"])
@@ -885,7 +886,7 @@ class cross_validate_refiner:
 	def craft_cutoff_plots(self, dataframe, bitscore_cutoffs, id_position_cutoffs, idaln_cutoffs):
 		#Remove too highs.
 		dataframe = dataframe.loc[(dataframe['pct_aln'] <= 100.0) & (dataframe['pct_id'] <= 100.0)]
-		if self.show_all_reads:
+		if not self.show_all_reads:
 			if len(dataframe.index) > 12000:
 				dataframe = self.viz.sample_to_reasonable(dataframe)
 	
@@ -1187,6 +1188,12 @@ def build_rockout_model(parser, opts):
 	
 	all_reads = opts.big_viz
 	
+	filter_meth = opts.cv_meth
+	if filter_meth not in ['sequence_outgroups', 'subsample']:
+		print("Filter method", filter_meth, "not recognized.")
+		print("Defaulting to sequence_outgroups")
+		filter_meth = "sequence_outgroups"
+	
 	quiet = opts.quiet
 	verbose = (not quiet)
 				
@@ -1194,5 +1201,6 @@ def build_rockout_model(parser, opts):
 								skip_pplace = skip_pplacer, 
 								cutoff_bias = cutoff_bias,
 								show_all_reads = all_reads,
-								verbose = verbose)
+								verbose = verbose,
+								method = filter_meth)
 	mn.run()

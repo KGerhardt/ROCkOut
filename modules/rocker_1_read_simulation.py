@@ -50,6 +50,7 @@ def run_sim(read_simulator_item):
 	
 def run_tf(target_finder_item):
 	target_finder_item.run()
+	#print(target_finder_item.probable_hits)
 	return target_finder_item.probable_hits
 			
 class read_manager:
@@ -58,7 +59,7 @@ class read_manager:
 				dir = None,
 				#Read simulator arguments
 				coverage_depth = 20.0, 
-				snp_rate_per_base = 0.01, 
+				snp_rate_per_base = 0.01,
 				insertion_rate = 0.01/19.0, 
 				deletion_rate = 0.01/19.0,
 				
@@ -509,11 +510,13 @@ class probable_target_finder:
 		
 	
 	def parse_alignments_to_coords(self):
+		
 		outwriter = open(self.out_coords, "w")
 		print("origin_genome", "query_parent", "query_id", "qstart", "qend", "qstrand", "aligns_to_target", "pct_aln_to_tgt", "pct_ID_to_tgt", sep = "\t", file = outwriter)
 		passing_targets = []
 		fh = open(self.out_aln)
 		for line in fh:
+			#print(line)
 			segs = line.strip().split("\t")
 			query = segs[0].split(";")
 			qid = query[0]
@@ -522,17 +525,13 @@ class probable_target_finder:
 			else:
 				label = "discovered_match_through_homology"
 				
-			if qid not in self.ref_prots: #We don't need to check already referenced items
-			
+			if qid not in self.ref_prots: #We don't need to check already referenced items			
 				target = segs[1]
 				tgt_length = self.reflens[target]
 				pid = float(segs[2])
 				aln_len = int(segs[3])
 				pct_aln = round((aln_len/tgt_length) * 100, 2)
-				
-				#if self.parent == "F4GW25_PUSST":
-				#	print(target, tgt_length, pct_aln, pid, label)
-				
+								
 				if self.reference_genome not in self.probable_hits:
 					self.probable_hits[self.reference_genome] = {}
 				
@@ -542,6 +541,8 @@ class probable_target_finder:
 			
 		outwriter.close()
 		fh.close()
+		
+		
 		
 	def run(self):
 		try:
