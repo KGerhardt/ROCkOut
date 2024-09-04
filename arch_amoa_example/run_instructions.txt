@@ -1,0 +1,1 @@
+python3 final_rockout_code/rockout_main.py download -d arch_amoa -p AmoA_A.positive.txt -n AmoA_A.negative.txt -t 1
