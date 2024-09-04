@@ -12,25 +12,72 @@ Consequently, ROCkOut is not intended to perfectly replicate the original ROCker
 
 Additionally, ROCkOut is designed to support the user through visual aids and supports that make the building process friendly, rather than combatitive.
 
-# Progress report:
+# ROCkI/O Modules
 
-0_download_from_uniprot - A script which downloads proteins from UniProt using their IDs and their associated data in a similar manner to the original ROCker. Initializes a project directory and organizes data. Data downloaded in this step include an annotation of each UniProt protein, a FASTA of the genome containing it, related protein sets as GFFs, and the coordinates and sequence of the target protein for each item in the positive set.
+Please refer to https://github.com/rotheconrad/ROCkIn for details on ROCkIn's installation and use. ROCkIn is not strictly necessary to use ROCkOut; however, I cannot reccommend its use strongly enough. It will save you days of work time in finding reference protein sequences for a ROCkOut model and will help you communicate both the contents of your ROCkOut model and the rationale for why a model included the sequences it did.
 
-1_generate_reads - From a project directory, simulates reads using BBTools RandomReads. Reads are simulated from the genomes created in step 0 and/or from genomes manually added by a user.
+ROCkOut contains a set of functions for creating a ROCkOut model (a classifier for identifying a gene in a metagenome) and a set of functions for using a ROCkOut model.
 
-2_tag_reads - Tags simulated reads for ROCkOut. Includes information on the origin genome of each read and their true alignment.
+# ROCkOut model creation functions
 
-# Plans and ideas:
+## ROCkOut download
 
-3_align_to_refs - Builds a database from the current set of postive proteins and aligns tagged reads to the database. Not quite done.
+ROCkOut's download module takes one collection of UniProt IDs representing a target gene function and optionally a second collection representing genes with similar amino acid sequences but different functions to serve an out-group. These sequences will be collected from UniProt online, if they exist in the current release of UniProt, and the gene sequences of each ID, genomes containing those genes, assosciated proteomes, and some additional metadata are downloaded and processed by ROCkOut. ROCkOut concludes this step by creating a project "snapshot," a tar archive of all of the materials required to recreate an identical ROCkOut model to ensure reproducibility.
 
-* There needs to be a separate project initialization script for someone who wants to build a model from only manually downloaded genomes.
+ROCkOut creates a hierarchical directory structure during its download step to control like so:
 
-* Next steps are to finish the alignment component and move on to scripting the ROC results for the aligned reads.
+```bash
+|-----project_root
+    |
+    |-----positive
+    |   |
+    |   |-----positive_UniProt_ID_1
+    |   |-----positive_UniProt_ID_2
+    |   |-----positive_UniProt_ID_....
+    |   ....
+    |
+    |-----negative
+    |   |-----negative_UniProt_ID_1
+    |   |-----negative_UniProt_ID_2
+    |   |-----negative_UniProt_ID_....
+    |   ....
+    |
+    |-----shared_files
+    |   |
+    |   |-----downloads
+    |
+    |-----final_outputs
+    |   |
+    |   |-----snapshot
+           |
+           |----ROCkOut_Snapshot.tar.gz
 
-* Visual and building supports - a GUI made to allow for the interactive selection of proteins as in/out and show the resulting effect on the model would be good.
+```
+These directories will continue to be modified as the ensuing steps of ROCkOut run, adding additional information to each positive and negative subdirectory including simulated reads and building out the shared resources with items such as a multiple alignment of target and negative protein sequences. At the end of a project, the final outputs subdirectory contains the resources to run a ROCkOut model, the project snapshot, train and test results, and interactive figures showing the performance and characteristics of the final model created by ROCkOut.
 
-* Model building - The use of a sliding window for determining the best cutoffs for a model make sense, but having to rerun that whole step to see a new window doesn't. The data should just all be loaded and sliced as needed on the interactive page.
+Running the download step is simple:
+
+```bash
+python3 rockout_main.py download -p [positive_uniprot_IDs_file] -n [negative_uniprot_ids_file] -d [project_root_directory] -t [threads]
+```
+
+Or with the supplied test inputs in the arch_amoa_example folder:
+
+```bash
+python3 rockout_main.py download -p  -n [negative_uniprot_ids_file] -d [project_root_directory] -t [threads]
+```
+
+## ROCkOut build
+
+## ROCkOut refine
+
+# ROCkOut classification functions
+
+## ROCkOut
+
+# Additional support
+
+## ROCkOut extract
 
 # Dependencies
 
