@@ -79,7 +79,7 @@ python3 rockout_man.py build -d arch_amoa --short-lower 90 --short-upper 110 --m
 
 ROCkOut collects these reads into files with naming conventions indicating the average read length (rounded to the nearest integer), such as arch_amoa/positive/A0A060HNG6/CP007536_read_len_100_tagged.fasta. If the build step is run again, any target read lengths which produce an already-extant average read length will overwrite the file; however, you can simulate at different read lengths to produce more sets of reads representing the protein.
 
-The reason that multiple read lengths are simulated is that ROCkOut models are intended to be agnostic to the read lengths of the datasets it will filter. In practice, read length affects all of the metrics used by ROCkOut to filter reads (bitscore, percent identity, and percent of the read which aligned), meaning that it requires models that can account for read length. To achieve this, ROCkOut uses the four simulated read lengths as "ground truths" at likely read lengths for short read metagenomes, and interpolates cutoffs between adjacent, simulated models. It would be possible to directly similate every read length, but doing so is impractical.
+ROCkOut aligns these reads to all of the project's gene sequences, both positive and negative, using DIAMOND, and reports the alignments in tabular blast format (see https://www.metagenomics.wiki/tools/blast/blastn-output-format-6).
 
 The other major options used by ROCkOut's build step control simulated errors within the reads (--snp-rate controls the likelihood of each base on a read being a SNP, up to a maximum of 3/read, --insertrate and --deleterate control the probability of an insertion or deletion, see BBMap RandomReads usage for details), the average depth of coverage to which reads will be simulated (default --coverage 20, 20x depth on average; more is better for modelling but slower), and how hard DIAMOND will try to align reads (1-4 for increasing sensitivity but decreasing speed).
 
@@ -91,9 +91,27 @@ To run the build step using ROCkOut's defaults, you can use the simpler command:
 python3 rockout_main.py build -d arch_amoa -t [threads]
 ```
 
+Additional notes on the build step:
+
+The reason that multiple read lengths are simulated is that ROCkOut models are intended to be agnostic to the read lengths of the datasets it will filter. In practice, read length affects all of the metrics used by ROCkOut to filter reads (bitscore, percent identity, and percent of the read which aligned), meaning that it requires models that can account for read length. To achieve this, ROCkOut uses the four simulated read lengths as "ground truths" at likely read lengths for short read metagenomes, and interpolates cutoffs between adjacent, simulated models. It would be possible to directly similate every read length, but doing so is impractical.
+
+ROCkOut's alignment step also includes an unusual decision: rather than retaining the best match for each read, or just a few good matches, ROCkOut retains _every_ match for each read to any protein in the project. This is done because it's possible to replicate the effect of aligning only one best hit by subsequently filtering the more complete set of alignments down to only the top match by read. Exactly which match is best depends on what sequences are in a project, and it's common to remove sequences from a ROCkOut project during model refinement. By keeping the complete set of reads and dynamically filtering, ROCkOut will only need to run the computationally expensive alignment process once, unless a new sequence from UniProt is added to the project.
+
 ## ROCkOut refine
 
+ROCkOut's refine step is where it actually constructs a ROCkOut model from the simulated reads. ROCkOut first checks the project's positive subdirectory and creates a multiple alignment of the protein sequences found there. It then loads the read alignments into memory, filters the alignments to only those mapping to a _positive_ protein sequence, and then finds the best match per read among the remaining alignments. In essence, this step is equivalent to running the DIAMOND alignments to only the positive proteins in the project and retaining only the best single match per read.
 
+The loaded reads are divided into five partitions of train/test datasets by protein sequence. That is, ROCkOut selects (by defaults) 60% of the positive protein sequences to serve as training data and 40% of the positive protein sequences to serve as testing data, then gathers all of the reads originating from these sequences into their appropriate train/test collections. Reads aligning to a sequence in the opposite collection (i.e. training reads aligning to a testing sequence) are removed. This process simulates recovering reads from a natural environment, which is unlikely to contain _exact_ replicas of any of the genes within a ROCkOut project. ROCkOut then creates an independent classification model over each training dataset and assesses its performance in classifying reads from the corresponding testing dataset, recovering an F1 score. The five models are weighted by their F1 score, and their cutoffs are combined by weighted average.
+
+The process is repeated for each simulated read length, and ROCkOut records a final model encoding the averaged classification cutoffs for each read length.
+
+```bash
+
+```
+
+Notes on ROCkOut models:
+
+ROCkOut models are an ensemble of three constitutent models, each classifying reads using a similar approach over different slices of the read alignments.
 
 # ROCkOut classification functions
 
