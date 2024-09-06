@@ -105,8 +105,10 @@ The loaded reads are divided into five partitions of train/test datasets by prot
 
 The process is repeated for each simulated read length, and ROCkOut records a final model encoding the averaged classification cutoffs for each read length.
 
-```bash
+In addition to producing a ROCkOut model, ROCkOut can produce a phylogeny for use with an optional step of ROCkOut, see 
 
+```bash
+python3 rockout_main.py -d arch_amoa -t [threads]
 ```
 
 Notes on ROCkOut models:
@@ -115,7 +117,11 @@ ROCkOut models are an ensemble of three constitutent models, each classifying re
 
 # ROCkOut classification functions
 
-## ROCkOut
+## ROCkOut align
+
+## ROCkOut filter
+
+## ROCkOut Place
 
 # Additional support
 
