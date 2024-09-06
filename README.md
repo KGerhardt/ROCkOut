@@ -64,12 +64,36 @@ python3 rockout_main.py download -p [positive_uniprot_IDs_file] -n [negative_uni
 Or with the supplied test inputs in the arch_amoa_example folder:
 
 ```bash
-python3 rockout_main.py download -p  -n [negative_uniprot_ids_file] -d [project_root_directory] -t [threads]
+python3 rockout_main.py download -p AmoA_A.positive.txt -n AmoA_A.negative.txt -d arch_amoa -t [threads]
 ```
 
 ## ROCkOut build
 
+ROCkOut's build step primarily encompasses read simulation and alignment. This step starts with a ROCkOut project directory (whatever was specified by -d in the download step) and all of its other options concern how it simulates and aligns reads.
+
+ROCkOut takes the whole genomes downloaded in the previous steps and simulates reads from each at four read target read lengths. These lengths are uniform distributions over a target interval specified by a lower and upper bound, with default target lengths of 100bp, 150bp, 250bp, and 300bp, all with ranges of +/- 10% of the average read length (e.g, the 150bp read set is a uniform distribution over [135, 150]bp). If these were manually set using ROCkOut's options, it would look like so:
+
+```bash
+python3 rockout_man.py build -d arch_amoa --short-lower 90 --short-upper 110 --med-lower 135 --med-upper 165 --long-lower 225 --long-upper 275 --xl-lower 270 --xl-upper 330
+```
+
+ROCkOut collects these reads into files with naming conventions indicating the average read length (rounded to the nearest integer), such as arch_amoa/positive/A0A060HNG6/CP007536_read_len_100_tagged.fasta. If the build step is run again, any target read lengths which produce an already-extant average read length will overwrite the file; however, you can simulate at different read lengths to produce more sets of reads representing the protein.
+
+The reason that multiple read lengths are simulated is that ROCkOut models are intended to be agnostic to the read lengths of the datasets it will filter. In practice, read length affects all of the metrics used by ROCkOut to filter reads (bitscore, percent identity, and percent of the read which aligned), meaning that it requires models that can account for read length. To achieve this, ROCkOut uses the four simulated read lengths as "ground truths" at likely read lengths for short read metagenomes, and interpolates cutoffs between adjacent, simulated models. It would be possible to directly similate every read length, but doing so is impractical.
+
+The other major options used by ROCkOut's build step control simulated errors within the reads (--snp-rate controls the likelihood of each base on a read being a SNP, up to a maximum of 3/read, --insertrate and --deleterate control the probability of an insertion or deletion, see BBMap RandomReads usage for details), the average depth of coverage to which reads will be simulated (default --coverage 20, 20x depth on average; more is better for modelling but slower), and how hard DIAMOND will try to align reads (1-4 for increasing sensitivity but decreasing speed).
+
+There is also one other significant options: --no-clean. The simulated reads produced by ROCkOut can consume a great deal of disk space, and so as each read length is simulated and aligned, ROCkOut will filter the raw, simulated reads down to only the small number of reads that actually aligned to a protein within the project. --no-clean simply turns off this filtering step. Reads are generated deterministically, so they can always be recovered by a subsequent run of ROCkOut either way.
+
+To run the build step using ROCkOut's defaults, you can use the simpler command:
+
+```bash
+python3 rockout_main.py build -d arch_amoa -t [threads]
+```
+
 ## ROCkOut refine
+
+
 
 # ROCkOut classification functions
 
