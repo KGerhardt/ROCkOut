@@ -129,7 +129,7 @@ For convenience, ROCkOut's align function includes two ways to supply reads (in 
 
 The --threads options in this module is passed to DIAMOND, meaning that it is useful to supply multiple threads even when you have only one set of reads to align.
 
-To ensure that you have a set of reads to align, we're going to use ROCkOut's extract funtion to collect the reads and alignments from the arch_amoa example.
+To ensure that you have a set of reads to align, we're going to use ROCkOut's extract funtion to collect the reads and alignments from the arch_amoa example. 
 
 ```bash
 mkdir amoa_reads amoa_reads/raws amoa_reads/extracted_alignments
@@ -137,9 +137,17 @@ python3 final_rockout_code/rockout_main.py extract -d arch_amoa -t 10 -a amoa_re
 python3 final_rockout_code/rockout_main.py align -d arch_amoa/ -t [threads] -f arch_amoa_alns  -f amoa_reads/rockout_filtering --reads_dir amoa_reads/raws/
 ```
 
+Any set of reads will work in place of the --reads_dir or --input_reads command, but remember that ROCkOut is designed to find reads that align to the project's target gene (family). If a metagenome doesn't have any reads that succeed in aligning, there will be no alignments output by the align step.
+
 ## ROCkOut filter
 
+The filter step is ROCkOut's primary endpoint. This step takes a set of aligned reads as produced by align step and applies a ROCkOut model to filter these reads as passing (ROCkOut thinks the reads come from the model's gene) and failing (ROCkOut thinks the reads are spurious alignments). This step is simple to run: supply the model directory with -d, just as in all the previous steps and the filter directory created during the align step with -f.
 
+```bash
+python3 rockout_main.py filter -d arch_amoa/ -f amoa_reads/rockout_filtering/ --threads [threads]
+```
+
+This will add new subdirectories to the filter directory, here amoa_reads/rockout_filtering/ 
 
 ## ROCkOut Place
 
