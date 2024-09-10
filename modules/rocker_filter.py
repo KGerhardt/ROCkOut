@@ -218,7 +218,9 @@ class rocker_filterer:
 	def load_reads(self, reads_file):
 		df = pd.read_csv(reads_file, sep = "\t", header=None, 
 						usecols = [0, 1, 2, 3, 6, 7, 8, 9, 11, 12, 13])
-		df.columns = ["read", "target", "pctid", "alnlen", "qst", "qnd", "sst", "snd", "bs", "qlen", "slen"]
+						
+		colnames = ["read", "target", "pctid", "alnlen", "qst", "qnd", "sst", "snd", "bs", "qlen", "slen"]
+		df.columns = colnames
 
 		
 		valid_offsets = set(list(self.offsets.keys()))
@@ -234,7 +236,7 @@ class rocker_filterer:
 	
 	def besthit_reads(self, df):
 		#Collect max bitscore by read
-		idx = df.groupby(['read'])['bs'].transform(max) == df['bs']
+		idx = df.groupby(['read'])['bs'].transform("max") == df['bs']
 		df = df[idx]
 		df = df.reset_index(drop = True)
 			
@@ -327,7 +329,7 @@ class rocker_filterer:
 		
 		out.close()
 		
-	def filter_reads(self, read_df):
+	def filter_reads(self, read_df, name_prefix):
 		percent_alignment_matches = np.searchsorted(self.aln_positions, read_df["pct_aln"], side = 'left')
 		percent_alignment_matches -= 1
 		multiple_alignment_positions = []
@@ -399,29 +401,23 @@ class rocker_filterer:
 			nearest_idaln = self.idaln_filtmat[average_rl_index, :]
 			read_df['ma_pos'] = multiple_alignment_positions
 			
+			
 			cat = []
-			for read, guessed_positive in zip(read_df["read"], read_df["passes_ensemble"]):
-				segs = read.split(";")
-				label = segs[-1]
-				#print(label, guessed_positive)
+			for guessed_positive in read_df["passes_ensemble"]:
 				
 				if guessed_positive:
-					if label == "Positive":
-						cat.append("True Positive")
-					else:
-						cat.append("False Positive")
+					cat.append("Positive")
 				else:
-					if label == "Positive":
-						cat.append("False Negative")
-					else:
-						cat.append("True Negative")
+					cat.append("Negative")
 			
 			read_df['label'] = cat 
 			
-			self.plot_results(read_df, 
+			
+			self.plot_results(read_df,
 								nearest_bitpos, 
 								nearest_idpos, 
-								nearest_idaln)
+								nearest_idaln,
+								name_prefix)
 		
 		passing_reads = read_df[read_df["passed_filters_out_of_3"] >= 2]
 		failing_reads = read_df[read_df["passed_filters_out_of_3"] < 2]
@@ -442,22 +438,22 @@ class rocker_filterer:
 			
 		return passing_reads, failing_reads
 
-	def plot_results(self, df, bp, ip, ia):
+	def plot_results(self, df, bp, ip, ia, prefix):
 		bsl = px.line(x = self.bit_positions, y = bp)
 		pil = px.line(x = self.id_positions, y = ip)
 		ial = px.line(x = self.aln_positions, y = ia)
 
 		bs = px.scatter(df, x = 'ma_pos', y = 'bs', color = "label", hover_data=["read"])
 		bs = go.Figure(data=bs.data + bsl.data)
-		bs.write_html("bitscore_filter_plot.html")
+		bs.write_html(os.path.normpath(self.viz + "/" + prefix + "_bitscore_filter_plot.html"))
 		
 		id = px.scatter(df, x = 'ma_pos', y = 'pctid', color = "label", hover_data=["read"])
 		id = go.Figure(data=id.data + pil.data)
-		id.write_html("pct_id_filter_plot.html")
+		id.write_html(os.path.normpath(self.viz + "/" + prefix + "_pct_id_filter_plot.html"))
 		
 		idaln = px.scatter(df, x = 'pct_aln', y = 'pctid', color = "label", hover_data=["read"])
 		idaln = go.Figure(data=idaln.data + ial.data)
-		idaln.write_html("id_aln_filter_plot.html")
+		idaln.write_html(os.path.normpath(self.viz + "/" + prefix + "_id_aln_filter_plot.html"))
 		
 		
 	
@@ -485,9 +481,7 @@ class rocker_filterer:
 	def run_filterer(self, r, b, raw):
 		loaded_reads = self.load_reads(r)
 		loaded_reads = self.besthit_reads(loaded_reads)
-		p, f = self.filter_reads(loaded_reads)
-		
-		
+		p, f = self.filter_reads(loaded_reads, get_bn(r))
 
 		outp = os.path.normpath(self.passing + "/" +b+".ROCkOut_passing.txt")
 		outf = os.path.normpath(self.failing+ "/" +b+".ROCkOut_failing.txt")
