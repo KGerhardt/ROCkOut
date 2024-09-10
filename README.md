@@ -113,13 +113,33 @@ python3 rockout_main.py -d arch_amoa -t [threads]
 
 Notes on ROCkOut models:
 
-ROCkOut models are an ensemble of three constitutent models, each classifying reads using a similar approach over different slices of the read alignments.
+ROCkOut models are an ensemble of three constitutent models, each classifying reads using a similar approach over different slices of the read alignments. The three filters are all 2D plots of the same set of aligned reads, differing in their X and Y axes. The first plot is identical to the original ROCker, mapping read alignment position in the multiple alignment of target sequences on the X axis against bitscore on the Y axis. The second plot is read alignment position on the X axis (same as the first) against the percent similarity between the aligned portion of the read and the protein to which it best aligns on the Y axis. The third plot consists of each reads' alignment fraction on the X axis against percent identity on the Y axis (same as the second plot).
+
+Each of these constituents has a cutoff curve calculated by moving a sliding window along its X axis and finding the most discriminant cutoff along the Y axis for reads falling in that window. That is, the point on the Y axis that maximizes Youden's J statistic (sensitivity + specificity -1). The sliding window is moved over one unit on the X axis (1 amino acid for the first two constitutents, a bin of 2.5% alignment fraction for the third) and the process is repeated until every window has been covered.
+
+When used by ROCkOut, each model is used separately to classify each read in a dataset; that is, each read is classified as positive or negative three times, once by each constituent model. These three "votes" are then used to make a final determination. This process results in better overall perfromance as each of the three models each perform better in some edge cases compared to the other two, meaning that the vote covers the shortcomings of each constituent well.
 
 # ROCkOut classification functions
 
 ## ROCkOut align
 
+ROCkOut's align function takes a metagenome supplied by the user and runs DIAMOND to align it to a ROCkOut project. Only the final_outputs subdirectory of a ROCkOut project is required to run this step, something done to increase the portability of a ROCkOut model.
+
+For convenience, ROCkOut's align function includes two ways to supply reads (in FASTA format): (1) as a comma-separated list of file paths using -i/--input_reads, or (2) as a directory containing read files and only read files using --reads_dir. The -d option specifies a ROCkOut project directory containing a finalized ROCkOut model and the -f/--filter_directory option specifies an output location for the read alignments. Outputs are automatically named according to the input files.
+
+The --threads options in this module is passed to DIAMOND, meaning that it is useful to supply multiple threads even when you have only one set of reads to align.
+
+To ensure that you have a set of reads to align, we're going to use ROCkOut's extract funtion to collect the reads and alignments from the arch_amoa example.
+
+```bash
+mkdir amoa_reads amoa_reads/raws amoa_reads/extracted_alignments
+python3 final_rockout_code/rockout_main.py extract -d arch_amoa -t 10 -a amoa_reads/extracted_alignments/arch_amoa -r amoa_reads/raws/arch_amoa
+python3 final_rockout_code/rockout_main.py align -d arch_amoa/ -t [threads] -f arch_amoa_alns  -f amoa_reads/rockout_filtering --reads_dir amoa_reads/raws/
+```
+
 ## ROCkOut filter
+
+
 
 ## ROCkOut Place
 
