@@ -12,7 +12,7 @@ def import_rocker_project(project_directory):
 	return manager
 	
 class rocker_aligner:
-	def __init__(self, project_directory, use_blast = False, thds = 1, inpaths = None, filter_prep = None):
+	def __init__(self, project_directory, thds = 1, inpaths = None, filter_prep = None):
 		self.prjdir = project_directory
 		self.mn = import_rocker_project(self.prjdir)
 		
@@ -31,7 +31,6 @@ class rocker_aligner:
 		
 		self.ready_for_filter = filter_prep
 		
-		self.use_blast = use_blast
 		self.threads = thds
 	
 	def craft_pairs(self):
@@ -126,7 +125,6 @@ def align_to_refs(parser, opts):
 	reads = opts.reads
 	reads_dir = opts.reads_dir
 	threads = opts.threads
-	blast = opts.use_blast
 	
 	if dir is None:
 		parser.print_help()
@@ -171,7 +169,7 @@ def align_to_refs(parser, opts):
 	
 	mn = rocker_aligner(
 	project_directory = dir,
-	use_blast = blast,
+	use_blast = False,
 	thds = threads, 
 	inpaths = reads,
 	filter_prep = filter_prep)
