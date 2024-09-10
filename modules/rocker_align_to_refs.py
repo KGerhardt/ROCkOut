@@ -17,7 +17,6 @@ class rocker_aligner:
 		self.mn = import_rocker_project(self.prjdir)
 		
 		self.diamond_db = self.mn.targets_dia
-		self.blast_db = self.mn.targets_blast
 		
 		self.reads_to_align = inpaths
 		self.output_paths = None
@@ -53,15 +52,10 @@ class rocker_aligner:
 			
 			self.filtered_reads.append((read, alignment, filtered_raw,))
 			
-			bla_fmt = "'6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen'"
 			dia_fmt = "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"
-			if self.use_blast:
-				arg = "blastx -db {database} -query {input} -out {output} -outfmt {bla_fmt} -num_threads {threads}"
-				arg = arg.format(database = self.blast_db, input = read, output = alignment, bla_fmt = bla_fmt, threads = self.threads)
-				#Maybe needs a besthit filter here, too?
-			else:
-				arg = "diamond blastx --very-sensitive --unal 0 --db {database} --query {input} --out {output} --outfmt {dia_fmt} --threads {threads}"
-				arg = arg.format(database = self.diamond_db, input = read, output = alignment, dia_fmt = dia_fmt, threads = self.threads)
+
+			arg = "diamond blastx --very-sensitive --unal 0 --db {database} --query {input} --out {output} --outfmt {dia_fmt} --threads {threads}"
+			arg = arg.format(database = self.diamond_db, input = read, output = alignment, dia_fmt = dia_fmt, threads = self.threads)
 			
 			self.commands.append(arg)
 					
@@ -169,7 +163,6 @@ def align_to_refs(parser, opts):
 	
 	mn = rocker_aligner(
 	project_directory = dir,
-	use_blast = False,
 	thds = threads, 
 	inpaths = reads,
 	filter_prep = filter_prep)

@@ -126,6 +126,7 @@ class cross_validate_refiner:
 		self.pplace_pos = genomes_for_pplacer_pos
 		self.pplace_neg = genomes_for_pplacer_neg
 		
+		
 		phylomap_build(pos = genomes_for_pplacer_pos,
 						neg = genomes_for_pplacer_neg,
 						output = self.final_outputs)
@@ -779,8 +780,7 @@ class cross_validate_refiner:
 		
 		return accuracy, sensitivity, specificity, fpr, fnr, f1
 	
-	#def filter_testing_data(self, test, bs, id, ia, minimum_rl, maximum_rl, test_idx, readlen):
-	def filter_testing_data(self, test, bs, id, ia, minimum_rl, maximum_rl, test_idx, return_confmat = False):
+	def filter_testing_data(self, test, bs, id, ia, minimum_rl, maximum_rl, test_idx, return_confmat = False, test_out_path = ""):
 		#Presumptive failures for pct aln > 100 pct or (shouldn't be possible) pct ID > 100
 		too_much_aln = test.loc[(test['pct_aln'] > 100.0) | (test['pct_id'] > 100.0)]
 		
@@ -823,6 +823,9 @@ class cross_validate_refiner:
 			#Read length to filter matrix row position
 			readlen_index = qlen - minimum_rl
 			readlen_index = int(readlen_index)
+			
+			if readlen_index > bs.shape[0]:
+				readlen_index = bs.shape[0] - 1
 				
 			#Collect the location in the middle of the alignment
 			#read_mid = int(((start+end-1)/2))
@@ -854,6 +857,14 @@ class cross_validate_refiner:
 		
 		#print(label_is_positive)
 		
+		test_writeout = test
+		test_writeout['passes_bitscore_pos_filter'] = bs_passes
+		test_writeout['passes_pct_id_pos_filter'] = idpos_passes
+		test_writeout['passes_pct_id_pct_aln_filter'] = idaln_passes
+		test_writeout['passes_ensemble_filter'] = vote
+		
+		test_writeout.to_csv(os.path.normpath(test_out_path+ "/testing_data_"+str(test_idx)+".txt"), sep = "\t", index=False)
+		
 		bs_perf = self.fill_confmat(test["classifier"], bs_passes, presumptive_false_negs, presumptive_true_negs)
 		idpos_perf = self.fill_confmat(test["classifier"], idpos_passes, presumptive_false_negs, presumptive_true_negs)
 		idaln_perf = self.fill_confmat(test["classifier"], idaln_passes, presumptive_false_negs, presumptive_true_negs)
@@ -862,6 +873,7 @@ class cross_validate_refiner:
 		#print(test_idx, readlen, votes)
 		#print(test_idx, votes)
 		res = self.confmat_to_stats(vote_perf)	
+		
 		
 		self.model_F1_scores[test_idx] = res[5]
 		
@@ -914,19 +926,42 @@ class cross_validate_refiner:
 														
 		return bs_plot, id_plot, aln_plot
 	
+	def output_cv_models(self, idaln, idpos, bitpos, model_base):
+		pass
+	
 	def process_CV(self):
+		#Output tracking
+		if not os.path.exists(os.path.normpath(self.base + "/final_outputs/train_test")):
+			os.mkdir(os.path.normpath(self.base + "/final_outputs/train_test"))
+		if not os.path.exists(os.path.normpath(self.base + "/final_outputs/train_test/training_data")):
+			os.mkdir(os.path.normpath(self.base + "/final_outputs/train_test/training_data"))
+		if not os.path.exists(os.path.normpath(self.base + "/final_outputs/train_test/testing_data_and_results")):
+			os.mkdir(os.path.normpath(self.base + "/final_outputs/train_test/testing_data_and_results"))
+		if not os.path.exists(os.path.normpath(self.base + "/final_outputs/train_test/models")):
+			os.mkdir(os.path.normpath(self.base + "/final_outputs/train_test/models"))
+	
 		training_bitscore_cutoffs = {}
 		training_id_pos_cutoffs = {}
 		training_id_aln_cutoffs = {}
 		
+		train_out_base = os.path.normpath(os.path.normpath(self.base + "/final_outputs/train_test/training_data"))
+		test_out_base = os.path.normpath(os.path.normpath(self.base + "/final_outputs/train_test/testing_data_and_results"))
+		model_base = os.path.normpath(os.path.normpath(self.base + "/final_outputs/train_test/models"))
+		
 		#Iterates over all readlengths for one CV id out of 5
 		for training_dataset, read_length, train_index in self.labeller.get_training_data():
+		
+			training_dataset.to_csv(os.path.normpath(train_out_base+ "/training_data_"+str(train_index)+".txt"),
+									sep = "\t")
+		
 			if train_index not in training_bitscore_cutoffs:
 				training_bitscore_cutoffs[train_index] = {}
 				training_id_pos_cutoffs[train_index] = {}
 				training_id_aln_cutoffs[train_index] = {}
 				
 			idaln, idpos, bitpos = self.calculate_curves_for_one_set(training_dataset, read_length)
+				
+			self.output_cv_models(idaln, idpos, bitpos, model_base)
 				
 			#We write out the calculated filters because they're useful project-end data
 			training_bitscore_cutoffs[train_index][read_length] = bitpos
@@ -953,6 +988,8 @@ class cross_validate_refiner:
 			id_filters[train_index] = id_pos_filter_matrix
 			idaln_filters[train_index] = id_aln_filter_matrix
 			readlen_range[train_index] =  (min_rl, max_rl)
+			
+			
 						
 		#for testing_dataset, read_length, test_index in self.labeller.get_testing_data():
 		for testing_dataset, test_index in self.labeller.get_testing_data():
@@ -961,7 +998,7 @@ class cross_validate_refiner:
 			ia = idaln_filters[test_index]
 			min_readlen = readlen_range[test_index][0]
 			max_readlen = readlen_range[test_index][1]
-			self.filter_testing_data(testing_dataset, bs, id, ia, min_readlen, max_readlen, test_index)
+			self.filter_testing_data(testing_dataset, bs, id, ia, min_readlen, max_readlen, test_index, test_out_path = test_out_base)
 		
 		final_model_bitscore_cutoffs = {}
 		final_model_id_pos_cutoffs = {}
@@ -1029,7 +1066,11 @@ class cross_validate_refiner:
 									bs,
 									id,
 									ia, 
-									self.min_readlen, self.max_readlen, -1, return_confmat = True)
+									self.min_readlen, 
+									self.max_readlen, 
+									-1, 
+									return_confmat = True,
+									test_out_path = test_out_base)
 				for classification in vote_perf:
 					overall_performance[classification] += vote_perf[classification]
 				
@@ -1053,7 +1094,7 @@ class cross_validate_refiner:
 				"final_outputs/figures",
 				"final_outputs/model",
 				"final_outputs/reads",
-				"final_outputs/test_train",
+				"final_outputs/train_test",
 				"final_outputs/phylogenetic_placement",
 				"final_outputs/database"]
 		
@@ -1107,7 +1148,8 @@ class cross_validate_refiner:
 		for read_length in self.labeller.datasets:
 			outpath = os.path.normpath(self.base+"/final_outputs/reads/complete_reads_read_length_"+str(read_length)+".txt")
 			self.labeller.datasets[read_length].to_csv(outpath, sep = "\t", header = True, index = False)
-		
+	
+	#Obsolete
 	def output_train_test_indices(self):
 		for rl in self.labeller.train_indices:
 			for sample in self.labeller.train_indices[rl]:
@@ -1154,7 +1196,7 @@ class cross_validate_refiner:
 		
 		self.output_labeled_reads()
 		
-		self.output_train_test_indices()
+		#self.output_train_test_indices()
 		
 		print("Creating plots of the models...")
 		self.output_plots()
