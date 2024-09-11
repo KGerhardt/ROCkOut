@@ -133,7 +133,7 @@ To ensure that you have a set of reads to align, we're going to use ROCkOut's ex
 
 ```bash
 mkdir amoa_reads amoa_reads/raws amoa_reads/extracted_alignments
-python3 final_rockout_code/rockout_main.py extract -d arch_amoa -t 10 -a amoa_reads/extracted_alignments/arch_amoa -r amoa_reads/raws/arch_amoa
+python3 final_rockout_code/rockout_main.py extract -d arch_amoa/ -t [threads] -a amoa_reads/extracted_alignments/arch_amoa -r amoa_reads/raws/arch_amoa
 python3 final_rockout_code/rockout_main.py align -d arch_amoa/ -t [threads] -f arch_amoa_alns  -f amoa_reads/rockout_filtering --reads_dir amoa_reads/raws/
 ```
 
@@ -147,13 +147,25 @@ The filter step is ROCkOut's primary endpoint. This step takes a set of aligned 
 python3 rockout_main.py filter -d arch_amoa/ -f amoa_reads/rockout_filtering/ --threads [threads]
 ```
 
-This will add new subdirectories to the filter directory, here amoa_reads/rockout_filtering/ 
+This will add new subdirectories to the filter directory, to amoa_reads/rockout_filtering/ in the example. These will include subdirectories for passing and failing alignments and original FASTA-format reads (four directories total) and a directory containing interactive visualizations of how each set of aligning reads passed or failed each of ROCkOut's filters.
 
 ## ROCkOut Place
+
+ROCkOut includes a final support step beyond classifying reads as positive or negative. In this step, ROCkOut uses the Pplacer phylogenetic placement tool to further classify reads as originating from a particular protein in the project's target gene collection, or to quantify uncertainty between several options if a read cannot be reliably placed to one of these genes.
+
+```bash
+python3 final_rockout_code/rockout_main.py place -d arch_amoa/ -t [threads] -f amoa_reads/rockout_filtering/
+```
+
+This will continue adding subdirectories to the amoa_reads/rockout_filtering/ collection. "read_multiple_alignments" will show the multiple alignment of each read against the project's proteins, while the "pplacer_jplace" and "pplacer_tsv" directories will contain reports of the phylogenetic placements in the JSON-based jplace format for use with tools like the Interactive Tree of Life viewer (https://itol.embl.de/), while the tsv format contains a somewhat easier to work with structured file reporting the placement results of each read.
 
 # Additional support
 
 ## ROCkOut extract
+
+To faciliate users in more easily interacting with a ROCkOut project they are building, the extract function will peruse a ROCkOut project and return a collection of all of the reads and alignments assosciated with each gene, positive and negative, in the project. This is different to the set of reads returned by ROCkOut Refine in the final_outputs directory, as those reads only include the single best hit by read and only inlcude alignments. 
+
+This module serves as a utility to allow ROCkOut model developers to more easily test ROCkOut other tools or to otherwise examine the raw data for the project. For most users of a ROCkOut model, this module will be of little use.
 
 # Dependencies
 
