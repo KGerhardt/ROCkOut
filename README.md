@@ -12,6 +12,55 @@ Consequently, ROCkOut is not intended to perfectly replicate the original ROCker
 
 Additionally, ROCkOut is designed to support the user through visual aids and supports that make the building process friendly, rather than combatitive.
 
+# Usage Summary
+
+If using conda, activate the environment
+
+```bash
+conda activate ROCkOut
+```
+
+Before building the model, [ROCkIn](https://github.com/rotheconrad/ROCkIn) is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the [ROCkIn](https://github.com/rotheconrad/ROCkIn) repository for more details.
+
+Manually create a simple text file with one UniProt ID per line. Create one file for the positive IDs (POS) and optionally negative IDs (NEG). Do no leave any blank lines at the end or beginning of the these files.
+
+See the contents of the arch_amoa_example subdirectory for examples of these files.
+
+Run ROCker as a series of steps.
+
+For additional details for each script type: python scriptname.py OPTION -h
+
+*OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
+
+To build a ROCker model:
+1. Download
+2. Build
+3. Refine
+
+```bash
+python3 rockout_main.py download -d [OUT] -p [POS] -n [NEG] -t [THREADS]
+python3 rockout_main.py build -d [OUT] -t [THREADS] 
+python3 rockout_main.py refine -d [OUT] -t [THREADS]
+```
+
+[OUT] should be the same in all three cases.
+
+To Use a ROCker model:
+
+1. Align
+2. Filter
+3. (Optionally) Place
+
+```bash
+python3 rockout_main.py align -d [OUT] -f [FILTER_DIRECTORY] -i [READS] -t [THREADS]
+python3 rockout_main.py filter -d [OUT] -f [FILTER_DIRECTORY] -t [THREADS]
+python3 rockout_main.py place -d [OUT] -f [FILTER_DIRECTORY] -t [THREADS]
+```
+
+[OUT] should be the same directory specified during the build step above, or the root directory of a downloaded ROCkOut model. [FILTER_DIRECTORY] should be the same in all three cases - it is created for you during the align command and reused by the filter and place commands.
+
+See below for more detail on each module.
+
 # ROCkI/O Modules
 
 Please refer to https://github.com/rotheconrad/ROCkIn for details on ROCkIn's installation and use. ROCkIn is not strictly necessary to use ROCkOut; however, I cannot reccommend its use strongly enough. It will save you days of work time in finding reference protein sequences for a ROCkOut model and will help you communicate both the contents of your ROCkOut model and the rationale for why a model included the sequences it did.
@@ -223,46 +272,4 @@ CONDA_SUBDIR=osx-64 conda create -n ROCker -c bioconda -c conda-forge -c etetool
 conda activate ROCker
 conda config --env --set subdir osx-64
 conda install -c bioconda pplacer
-```
-
-# Usage
-
-If using conda, activate the environment
-
-```bash
-conda activate ROCkOut
-```
-
-Before building the model, [ROCkIn](https://github.com/rotheconrad/ROCkIn) is used to develop a list of positive sequences (and their UniProt IDs) and an optional list of negative sequences. Data from the ROCkIn pipeline is used to assist the user in selecting these sequences. See the [ROCkIn](https://github.com/rotheconrad/ROCkIn) repository for more details.
-
-Manually create a simple text file with one UniProt ID per line. Create one file for the positive IDs (POS) and optionally negative IDs (NEG). Do no leave any blank lines at the end or beginning of the these files.
-
-Run ROCker as a series of steps.
-
-For additional details for each script type: python scriptname.py OPTION -h
-
-*OUT=user specified project directory. Create any name you want for the first script and then use this same directory for the rest of the pipeline.*
-
-To build a ROCker model:
-1. Download
-1. Build
-
-```bash
-python rockout_main.py download [-h] [-d OUT] [-p POS] [-n NEG] [-t THREADS] [-q QUIET]
-python rockout_main.py build [-h] [-d OUT] [-t THREADS] 
-# interactive mode
-python rockout_main.py refine [-h] [-d OUT]
-# non-interactive just build plots for review
-python rockout_main.py refine-ni [-h] [-d OUT]
-```
-
-To Use a ROCker model:
-
-1. Map reads to a set of reference sequencing with a corresponding ROCker model.
-1. filter 
-1. pplace-prep
-
-```bash
-python rockout_main.py filter [-h]
-python rockout_main.py pplacer [-h]
 ```
