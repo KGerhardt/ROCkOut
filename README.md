@@ -1,7 +1,5 @@
 # ROCkOut
 
-Work in progress!
-
 Python refactor of ROCker - https://github.com/lmrodriguezr/rocker
 
 # Rethinking the ROCker Approach:
