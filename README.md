@@ -59,6 +59,26 @@ python3 rockout_main.py place -d [OUT] -f [FILTER_DIRECTORY] -t [THREADS]
 
 See below for more detail on each module.
 
+# Conda Installation
+
+*All dependecies can be installed using conda*
+
+```bash
+conda create -n ROCker -c bioconda -c conda-forge -c plotly python=3.10 plotly bbmap muscle diamond numpy pandas requests fasttree mafft pplacer taxtastic
+```
+
+If using an M1 Mac you need to tell conda to use the old osx-64 architecture for several of the program dependencies to install through conda. For more details see [this article](https://towardsdatascience.com/how-to-manage-conda-environments-on-an-apple-silicon-m1-mac-1e29cb3bad12).
+
+*pplacer is not currently supported for conda install on m1 macs. ROCker will still work just not for the final (and optional) pplacer step unless you go through the hassle to manually install pplacer. It may be possible to run it using the precompiled binaries https://github.com/matsen/pplacer/releases and adding pplacer to your system PATH.*
+
+```bash
+# For M1 MAC as of Jan 2023
+CONDA_SUBDIR=osx-64 conda create -n ROCker -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft taxtastic pyqt
+conda activate ROCker
+conda config --env --set subdir osx-64
+conda install -c bioconda pplacer
+```
+
 # ROCkI/O Modules
 
 Please refer to https://github.com/rotheconrad/ROCkIn for details on ROCkIn's installation and use. ROCkIn is not strictly necessary to use ROCkOut; however, I cannot reccommend its use strongly enough. It will save you days of work time in finding reference protein sequences for a ROCkOut model and will help you communicate both the contents of your ROCkOut model and the rationale for why a model included the sequences it did.
@@ -252,22 +272,4 @@ This module serves as a utility to allow ROCkOut model developers to more easily
 1. https://github.com/fhcrc/taxtastic
 1. https://www.riverbankcomputing.com/software/pyqt/
 
-#### Conda Installation
 
-*All dependecies can be installed using conda*
-
-```bash
-conda create -n ROCker -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft pplacer taxtastic pyqt
-```
-
-If using an M1 Mac you need to tell conda to use the old osx-64 architecture for several of the program dependencies to install through conda. For more details see [this article](https://towardsdatascience.com/how-to-manage-conda-environments-on-an-apple-silicon-m1-mac-1e29cb3bad12).
-
-*pplacer is not currently supported for conda install on m1 macs. ROCker will still work just not for the final (and optional) pplacer step unless you go through the hassle to manually install pplacer. It may be possible to run it using the precompiled binaries https://github.com/matsen/pplacer/releases and adding pplacer to your system PATH.*
-
-```bash
-# For M1 MAC as of Jan 2023
-CONDA_SUBDIR=osx-64 conda create -n ROCker -c bioconda -c conda-forge -c etetoolkit python=3.10 bbmap muscle diamond numpy pandas requests dash fasttree ete3 mafft taxtastic pyqt
-conda activate ROCker
-conda config --env --set subdir osx-64
-conda install -c bioconda pplacer
-```
