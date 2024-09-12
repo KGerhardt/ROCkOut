@@ -377,7 +377,7 @@ class protein_trawler:
 		df = df.reset_index(drop=True)
 		
 		#Collect max bitscore by read
-		idx = df.groupby(['read_id'])["bitscore"].transform(max) == df["bitscore"]
+		idx = df.groupby(['read_id'])["bitscore"].transform("max") == df["bitscore"]
 		df = df[idx]
 		df = df.reset_index(drop = True)
 			
