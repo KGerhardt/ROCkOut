@@ -155,7 +155,7 @@ The process is repeated for each simulated read length, and ROCkOut records a fi
 In addition to producing a ROCkOut model, ROCkOut can produce a phylogeny for use with an optional step of ROCkOut, see 
 
 ```bash
-python3 rockout_main.py -d arch_amoa -t [threads]
+python3 rockout_main.py refine -d arch_amoa -t [threads]
 ```
 
 Notes on ROCkOut models:
