@@ -200,8 +200,8 @@ To ensure that you have a set of reads to align, we're going to use ROCkOut's ex
 
 ```bash
 mkdir amoa_reads amoa_reads/raws amoa_reads/extracted_alignments
-python3 final_rockout_code/rockout_main.py extract -d arch_amoa/ -t [threads] -a amoa_reads/extracted_alignments/arch_amoa -r amoa_reads/raws/arch_amoa
-python3 final_rockout_code/rockout_main.py align -d arch_amoa/ -t [threads] -f arch_amoa_alns  -f amoa_reads/rockout_filtering --reads_dir amoa_reads/raws/
+python3 rockout_main.py extract -d arch_amoa/ -t [threads] -a amoa_reads/extracted_alignments/arch_amoa -r amoa_reads/raws/arch_amoa
+python3 rockout_main.py align -d arch_amoa/ -t [threads] -f arch_amoa_alns  -f amoa_reads/rockout_filtering --reads_dir amoa_reads/raws/
 ```
 
 Any set of reads will work in place of the --reads_dir or --input_reads command, but remember that ROCkOut is designed to find reads that align to the project's target gene (family). If a metagenome doesn't have any reads that succeed in aligning, there will be no alignments output by the align step.
@@ -221,7 +221,7 @@ This will add new subdirectories to the filter directory, to amoa_reads/rockout_
 ROCkOut includes a final support step beyond classifying reads as positive or negative. In this step, ROCkOut uses the Pplacer phylogenetic placement tool to further classify reads as originating from a particular protein in the project's target gene collection, or to quantify uncertainty between several options if a read cannot be reliably placed to one of these genes.
 
 ```bash
-python3 final_rockout_code/rockout_main.py place -d arch_amoa/ -t [threads] -f amoa_reads/rockout_filtering/
+python3 rockout_main.py place -d arch_amoa/ -t [threads] -f amoa_reads/rockout_filtering/
 ```
 
 This will continue adding subdirectories to the amoa_reads/rockout_filtering/ collection. "read_multiple_alignments" will show the multiple alignment of each read against the project's proteins, while the "pplacer_jplace" and "pplacer_tsv" directories will contain reports of the phylogenetic placements in the JSON-based jplace format for use with tools like the Interactive Tree of Life viewer (https://itol.embl.de/), while the tsv format contains a somewhat easier to work with structured file reporting the placement results of each read.
