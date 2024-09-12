@@ -360,7 +360,7 @@ class cross_validate_refiner:
 		#Find the ID cutoffs that best separate pos from not-pos except...
 		final_id_cutoffs = np.argmax(performance, axis = 0).tolist()
 		final_id_cutoffs = [desc_ids[c] for c in final_id_cutoffs]
-		final_id_cutoffs = np.array(final_id_cutoffs,dtype = np.float_)
+		final_id_cutoffs = np.array(final_id_cutoffs,dtype = np.float64)
 		
 		#If no data seen, we are as conservative as possible and assume all reads fail here
 		#Usually happens when certain %aln values don't appear in shorter/longer simulated reads
@@ -672,7 +672,7 @@ class cross_validate_refiner:
 			x_to_index[x] = x_index
 			x_index += 1
 		
-		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float_)
+		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float64)
 		for rl in per_rl_x:
 			zi = rl - min_rl
 			for x, y in zip(per_rl_x[rl], per_rl_y[rl]):
@@ -680,7 +680,7 @@ class cross_validate_refiner:
 				matrix[zi, xi] = y
 				
 		matrix = self.interpolate_matrix(matrix)
-		allx = np.array(allx, dtype = np.float_)
+		allx = np.array(allx, dtype = np.float64)
 		
 		return matrix, allx
 	
@@ -714,7 +714,7 @@ class cross_validate_refiner:
 			x_index += 1
 		
 		#Create matrix; fill the rows which have actually calculated values
-		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float_)
+		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float64)
 		for rl in per_rl_x:
 			zi = rl - min_rl
 			for x, y in zip(per_rl_x[rl], per_rl_y[rl]):

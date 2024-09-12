@@ -187,7 +187,7 @@ class rocker_filterer:
 			x_to_index[x] = x_index
 			x_index += 1
 		
-		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float_)
+		matrix = np.zeros(shape = (z_shape, x_shape), dtype = np.float64)
 		for rl in per_rl_x:
 			zi = rl - min_rl
 			for x, y in zip(per_rl_x[rl], per_rl_y[rl]):
@@ -195,7 +195,7 @@ class rocker_filterer:
 				matrix[zi, xi] = y
 				
 		matrix = self.interpolate_matrix(matrix)
-		allx = np.array(allx, dtype = np.float_)
+		allx = np.array(allx, dtype = np.float64)
 		
 		return matrix, allx
 		
@@ -551,11 +551,11 @@ def internal_filter(bit, bitx, id, idx, idaln, idalnx, reads, filter_dir):
 	mn.filter_matrix = mn.interpolate_matrix(bit)
 	mn.idpos_filtmat = mn.interpolate_matrix(id)
 	mn.idaln_filtmat = mn.interpolate_matrix(idaln)
-	mn.bit_positions = np.array(bitx, dtype = np.float_)
-	mn.id_positions = np.array(idx, dtype = np.float_)
-	mn.aln_positions = np.array(idalnx, dtype = np.float_)
+	mn.bit_positions = np.array(bitx, dtype = np.float64)
+	mn.id_positions = np.array(idx, dtype = np.float64)
+	mn.aln_positions = np.array(idalnx, dtype = np.float64)
 		
-	#allx = np.array(allx, dtype = np.float_)
+	#allx = np.array(allx, dtype = np.float64)
 	
 	for read in reads:
 		passing_reads, failing_reads = mn.run_filterer_internal(read)
