@@ -1204,7 +1204,7 @@ def build_project(parser, opts):
 					standard = [ml, mu],
 					long = [ll, lu],
 					extra_long = [xll, xlu],
-					keep_reads = keep_reads)
+					keep_reads = False)
 	
 	
 	mn.find_probable_targets()
