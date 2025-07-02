@@ -1162,7 +1162,7 @@ def build_project(parser, opts):
 	xll = opts.xll
 	xlu = opts.xlu
 	
-	keep_reads = opts.keep_all
+	#keep_reads = opts.keep_all
 	
 	coverage = float(opts.cov)
 	snprate = float(opts.snps)
@@ -1214,7 +1214,7 @@ def build_project(parser, opts):
 	mn.make_prep()	
 	mn.run_simulation()
 	
-		#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
+	#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
 	if os.path.exists("ref/"):
 		if os.path.exists("ref/genome/"):
 			if len(os.listdir("ref/genome/")) == 0:
