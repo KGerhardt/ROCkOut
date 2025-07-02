@@ -16,8 +16,6 @@ from .rocker_project_manager import project_manager
 from .rocker_progress_tracker import progress_tracker
 from .reads_labeller import protein_trawler
 
-#from rocker_project_manager import project_manager
-#from rocker_progress_tracker import progress_tracker
 
 '''
 This is the most involved part of rockout
@@ -42,9 +40,11 @@ Each genome will:
 def run_sim(read_simulator_item):
 	#print("Simulating", read_simulator_item.inf)
 	read_simulator_item.simulate_reads()	
-	read_simulator_item.fastq_to_fasta()
-	read_simulator_item.tag_reads()
-	read_simulator_item.align_reads()
+	ok_to_continue = read_simulator_item.fastq_to_fasta()
+	if ok_to_continue:
+		read_simulator_item.tag_reads()
+		read_simulator_item.align_reads()
+	
 	read_simulator_item.clean_up_your_mess()
 	return read_simulator_item.inf
 	
@@ -54,7 +54,7 @@ def run_tf(target_finder_item):
 	return target_finder_item.probable_hits
 			
 class read_manager:
-	def __init__(self, 
+	def __init__(self,
 				threads = 1, 
 				dir = None,
 				#Read simulator arguments
@@ -67,8 +67,7 @@ class read_manager:
 				standard = None, 
 				long = None, 
 				extra_long = None,
-				
-				use_blast = False):
+				keep_reads = False):
 				
 		self.threads = threads
 		self.rocker_directory = dir
@@ -98,10 +97,10 @@ class read_manager:
 		
 		self.multiple_alignment = self.prep_dir(self.rocker_directory, "shared_files/multiple_alignment/")
 			
-		self.use_blast = use_blast
+		#self.use_blast = use_blast
 			
 		self.dia_db = os.path.normpath(self.shared_db + "/combined_database_diamond.db")
-		self.bla_db = os.path.normpath(self.shared_db + "/combined_database_blast.db")
+		#self.bla_db = os.path.normpath(self.shared_db + "/combined_database_blast.db")
 		
 		self.make_db()
 
@@ -112,6 +111,8 @@ class read_manager:
 		self.xl = extra_long
 		
 		self.simlens = [self.short, self.standard, self.long, self.xl]
+		
+		self.keep = keep_reads
 		
 		#Old format
 		'''
@@ -172,9 +173,6 @@ class read_manager:
 				next_pa = (item, proteome, bn, output_aln, output_coords)	
 				self.proteome_args.append(next_pa)
 				
-				#print(gen, l, coords, proteome)
-
-				#self.coords_files.append(gen)
 		
 		for item in self.project.genomes_neg:
 			for gen, l, coords, proteome in zip(self.project.genomes_neg[item], self.project.gen_lengths_neg[item], self.project.coords_neg[item], self.project.proteomes_neg[item]):
@@ -202,7 +200,7 @@ class read_manager:
 		
 	def make_db(self):	
 		target_db_name_dia = self.dia_db
-		target_db_name_bla = self.bla_db
+		#target_db_name_bla = self.bla_db
 		
 		target_fasta_set = os.path.normpath(self.shared_genomes + "/combined_proteins_aa.fasta")
 		target_fasta_set_nt = os.path.normpath(self.shared_genomes + "/combined_proteins_nt.fasta")
@@ -254,41 +252,42 @@ class read_manager:
 		combiner.close()
 		
 		#craft a MA
-		muscle_ma_command_aa = ["muscle", "-in", target_fasta_set, "-out", ma_file]
-		muscle_ma_command_nt = ["muscle", "-in", target_fasta_set_nt, "-out", ma_file_nt]	
+		muscle_ma_command_aa = ["muscle", "-align", target_fasta_set, "-output", ma_file]
+		muscle_ma_command_nt = ["muscle", "-align", target_fasta_set_nt, "-output", ma_file_nt]	
 		
 		#These should be nt only
 		tree_file = os.path.normpath(self.multiple_alignment + "/target_seq_tree.txt")
 		tree_log_file = os.path.normpath(self.multiple_alignment + "/fasttree_log.txt")
-		#fasttree -log ftl.txt eee/shared_files/multiple_alignment/target_seq_MA.txt > ftt.txt
-		#muscle_tree_command = ["muscle", "-maketree", "-in", self.ma, "-out", self.tree]
-		#subprocess.call(muscle_tree_command)
+
 		
 		fasttree_command = ["fasttree", "-nt", "-gtr", "-log", tree_log_file, "-out", tree_file, ma_file_nt]
 		
 		#Subprocess calls for MA+tree
 		
+		
 		subprocess.call(muscle_ma_command_aa)
 		subprocess.call(muscle_ma_command_nt)	
 		subprocess.call(fasttree_command)
+				
 				
 		makedb = ["diamond", "makedb", "--db", target_db_name_dia,  "--in", target_fasta_set]
 		print("Building Diamond database. Log information will follow.")
 		process = subprocess.call(makedb)
 		
-		try:
+		#try:
 			#makeblastdb -in <reference.fa> -dbtype nucl -parse_seqids -out <database_name> -title "Database title"
-			makedb = ["makeblastdb", "-in", target_fasta_set, "-parse_seqids", "-dbtype", "prot", "-out", target_db_name_bla]
+			#makedb = ["makeblastdb", "-in", target_fasta_set, "-parse_seqids", "-dbtype", "prot", "-out", target_db_name_bla]
 			#print(" ".join(makedb))
-			print("Building BLAST database for positive targets. Log information will follows.")
-			process = subprocess.call(makedb)
-		except:
-			print("Couldn't make BLAST database of positive targets!")
+			#print("Building BLAST database for positive targets. Log information will follows.")
+			#process = subprocess.call(makedb)
+		#except:
+			#print("Couldn't make BLAST database of positive targets!")
 		
-		if self.use_blast:
-			self.shared_db = target_db_name_bla
-		else:
-			self.shared_db = target_db_name_dia
+		#if self.use_blast:
+			#self.shared_db = target_db_name_bla
+		#else:
+		
+		self.shared_db = target_db_name_dia
 	
 	#Function for building out directories as part of a structure.
 	def prep_dir(self, out_base, dir):
@@ -366,6 +365,7 @@ class read_manager:
 		#print("")
 		final_results = {}
 		
+	
 		pool = multiprocessing.Pool(self.threads)
 		for result in pool.imap(run_tf, self.proteome_jobs):
 			if result is not None:
@@ -389,8 +389,9 @@ class read_manager:
 	def make_prep(self):
 		num = 1 #Arbitrary read simulation index for bbtools.
 		
+		
 		for prot, l, cs, ce in zip(self.genomes_to_sim, self.genlens, self.coord_starts, self.coord_ends):
-			base = prot.split("/genomes/")	
+			base = prot.split("/genomes/")
 						
 			output = prot.split("/genomes/")
 			out_base = output[0] + "/"
@@ -406,22 +407,24 @@ class read_manager:
 			for triplet in self.simlens:
 				#maxlen = triplet[2]
 				maxlen = triplet[1]
-				#print("requested length", maxlen, "seqlen", l)
-				if maxlen < l:
+				if maxlen < l: #if the requested read length is less than the genome's length, otw skip
+					#seen_files.append(input_protein)
 					next_item = one_protein(base[0], self.sim_arg_template, num, prot, 
-					triplet, self.shared_db, cs, ce, self.use_blast, 
+					triplet, self.shared_db, cs, ce, 
 					self.reference_prots_dict, #Real coords
-					self.per_ID_coords, self.read_labeller,) #Homology coords
+					self.per_ID_coords, self.read_labeller, self.keep,) #Homology coords
 					self.items_to_sim.append(next_item)
 					
 				num += 1
-		
+				
 	def run_simulation(self):
-		if self.use_blast:
-			prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using BLASTx. This will take a long time.")
-		else:
-			prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using DIAMOND. This will take some time.")
-	
+		#if self.use_blast:
+		#	prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using BLASTx. This will take a long time.")
+		#else:
+		
+		prog_bar = progress_tracker(total = len(self.items_to_sim), message = "Simulating metagenome and aligning reads using DIAMOND. This will take some time.")
+		
+		
 		pool = multiprocessing.Pool(self.threads)
 		for result in pool.imap_unordered(run_sim, self.items_to_sim):
 			prog_bar.update()
@@ -430,13 +433,6 @@ class read_manager:
 		
 		sleep(1.5)
 		
-		#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
-		if len(os.listdir("ref/genome/")) == 0:
-			shutil.rmtree("ref/genome/")
-		if len(os.listdir("ref/index/")) == 0:
-			shutil.rmtree("ref/index/")
-		if len(os.listdir("ref/")) == 0:
-			shutil.rmtree("ref/")
 	
 class probable_target_finder:
 	#probable_target_finder(proteome, self.shared_db, output_aln, output_coords, self.use_blast)
@@ -508,7 +504,6 @@ class probable_target_finder:
 		
 		process = subprocess.call(align_command, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 		
-	
 	def parse_alignments_to_coords(self):
 		
 		outwriter = open(self.out_coords, "w")
@@ -558,13 +553,41 @@ class probable_target_finder:
 				os.remove(self.out_coords)
 				
 			self.probable_hits = None #This essentially is a result of a GFF being empty, and we want to skip this.
+	
+def check_process_started(file_path):
+	filesize = 0
+	hang_count = 0
+	hanging = False
+	while not hanging:
+		if filesize > 0:
+			break
+		if os.path.exists(file_path): 
+			output_size = os.stat(file_path)
+			output_size = output_size.st_size
 			
+		else:#not finding the file is equivalent to a hang.
+			output_size = filesize 
+			
+		if output_size > filesize:
+			filesize = output_size
+		else:
+			hang_count += 1
+			if hang_count > 6:
+				hanging = True
+			
+		sleep(30)
+		
+	return hanging
+
+	
 class one_protein:
 	def __init__(self, directory_base, read_sim_template, build_num, input_fasta, sim_length, 
-				alignment_database, coord_starts, coord_ends, use_blast, target_coords, probable_coords, 
-				read_labeller):
+				alignment_database, coord_starts, coord_ends, target_coords, probable_coords, 
+				read_labeller, keep_reads):
 				
 		self.base = directory_base
+		
+		self.keep = keep_reads
 		
 		self.labeller = read_labeller
 		
@@ -586,12 +609,13 @@ class one_protein:
 		self.tagged = self.out_base + "tagged_reads/"+ self.this_readlen + "_tagged.fasta"
 		self.aln_reads = self.out_base + "aligned_reads/"+ self.this_readlen + "_aligned_reads.blast.txt"
 		
-		self.use_blast = use_blast
+		#self.use_blast = use_blast
 		
-		if self.use_blast:
-			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".BLAST_log.txt"
-		else:
-			self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".DIAMOND_log.txt"
+		#if self.use_blast:
+		#	self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".BLAST_log.txt"
+		#else:
+		
+		self.aln_err = self.out_base + "alignment_log/" + self.this_readlen + ".DIAMOND_log.txt"
 		
 		
 		self.template = read_sim_template
@@ -654,22 +678,58 @@ class one_protein:
 				self.homology_names.append(protein_id)
 				
 	def simulate_reads(self):
+		#print("Simulating", self.inf, "read_length", int((self.simlen[1] + self.simlen[0])/2))
+		#print("")
+	
 		next_gen = self.template.format(min = self.simlen[0],
-										#med = self.simlen[1],
 										max = self.simlen[1],
 										build_num = self.simulation_index,
 										input_genome = self.inf,
 										output_fastq = self.fastq)
-										
+
+			
+		#print(next_gen)
+		'''
+		next_gen = next_gen.split()
+		
+		read_size = self.simlen[1] + 1
+		gensize = 0
+		if os.path.exists(self.inf):
+			with open(self.inf) as fh:
+				for line in fh:
+					if not line.startswith(">"):
+						gensize += len(line.strip())
+						
+		if read_size < gensize:
+		'''
 		
 		next_gen = next_gen.split()
 		
 		proc = subprocess.Popen(next_gen, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		sleep(5)
+		hanging = check_process_started(self.fastq)
 		
-		for line in proc.stdout:
-			#Lines are imported in binary, this just converts to plaintext
-			self.generation_log += line.decode()
+		if hanging:
+			print(self.aln_reads, "was hanging and can't continue.")
+			print("")
+			try:
+				proc.terminate()
+				proc.kill()
+			except:
+				pass
 			
+			try:
+				os.remove(os.path.normpath(self.fastq))
+			except:
+				pass
+			
+		else:
+			proc.wait()
+		
+			for line in proc.stdout:
+				#Lines are imported in binary, this just converts to plaintext
+				self.generation_log += line.decode()
+				
 		try:
 			proc.stdout.close()
 		except:
@@ -679,7 +739,7 @@ class one_protein:
 			proc.stderr.close()
 		except:
 			pass
-			
+		
 		fh = open(self.out_base + "bbmap_log/"+self.this_readlen + ".simlog.txt", "w")
 		fh.write(self.generation_log)
 		fh.close()
@@ -694,6 +754,7 @@ class one_protein:
 			print("Couldn't remove ref/index/"+str(self.simulation_index))
 
 	def fastq_to_fasta(self):
+		has_fasta = True
 		if os.path.exists(os.path.normpath(self.fastq)):
 			line_counter = 1
 			fq = open(self.fastq)
@@ -719,7 +780,13 @@ class one_protein:
 			except:
 				print("Couldn't remove", self.fastq)
 		else:
-			print(self.fastq, "could not be generated. ROCkOut cannot continue without this file.")
+			has_fasta = False
+			print(self.fastq, "could not be generated.")
+			print("The reads may have failed to simulate or some other issue occurred.")
+			print("This file will be skipped, but ROCkOut will continue.")
+			print("")
+		
+		return has_fasta
 		
 	def calculate_read_overlap(self, read_start, read_end, gene_start, gene_end):
 		read_positions = np.arange(read_start, read_end, dtype = np.int32)
@@ -746,6 +813,10 @@ class one_protein:
 				malformed = False
 				
 				in_seq = False
+				#print(line)
+				
+				#read_id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
+				
 				try:
 					read_id, fr, to, comp, genome_id = re.search(bbmap_match, line).groups()
 				except:
@@ -761,86 +832,6 @@ class one_protein:
 				#label_read(self, genome, read_start, read_end, read_ID)
 				printable_name = self.labeller.tag_read(self.ref_genome, mn, mx, read_id, comp, genome_id)
 				
-				'''
-				continue
-				#Skip?
-				
-				overlap_bp = 0
-				pct_overlap = 0.0
-				
-				tagged_name = ';'.join([id, str(mn), str(mx), comp, genome_id])
-				
-				#Read is malformed for one reason or another. Skip and keep going with the others.
-				if len(tagged_name) == 0:
-					print(tagged_name)
-					#Skip writing until the next seq.
-					malformed = True
-					continue
-
-					
-				is_on_target = False
-				for start, end in zip(self.own_starts, self.own_ends):
-					if is_on_target:
-						continue
-					#if the read ends before the gene, mx will be < start
-					#if the gene ends before the read, mn will be > end
-					if mx >= start and mn <= end:
-						is_on_target = True
-						overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
-						qlen = mx-mn + 1
-						pct_overlap = 100*overlap_bp/qlen
-						pct_overlap = round(pct_overlap, 2)
-						
-				is_foreign_target = False
-				foreign_target_name = None
-				if not is_on_target: #Do NOT check already-flagged target sequences
-					for start, end, name in zip(self.foreign_starts, self.foreign_ends, self.foreign_names):
-						if is_foreign_target:
-							continue
-						#if the read ends before the gene, mx will be < start
-						#if the gene ends before the read, mn will be > end
-						if mx >= start and mn <= end:
-							is_foreign_target = True
-							foreign_target_name = name
-							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
-							qlen = mx-mn + 1
-							pct_overlap = 100*overlap_bp/qlen
-							pct_overlap = round(pct_overlap, 2)
-							
-
-				is_probable_target = False
-				homol_name = None
-				if not is_on_target and not is_foreign_target: #Do NOT check already-flagged target or foreign target sequences
-					for start, end, name in zip(self.homology_starts, self.homology_ends, self.homology_names):
-						if is_probable_target:
-							continue
-						if mx >= start and mn <= end:
-							is_probable_target = True
-							homol_name = name
-							overlap_bp = self.calculate_read_overlap(mn, mx, start, end)
-							qlen = mx-mn + 1
-							pct_overlap = 100*overlap_bp/qlen
-							pct_overlap = round(pct_overlap, 2)
-				
-				tagged_name = ';'.join([id, str(mn), str(mx), str(overlap_bp), str(pct_overlap), comp, genome_id])
-				
-				#if (start_window - 1) == end_window:
-				if is_on_target:
-					printable_name = ">" + tagged_name + ";Target"
-					#The read falls inside a target gene window and we should tag it as on-target
-					pos_ct += 1
-				else:
-					if is_foreign_target:
-						printable_name = ">" + tagged_name + ";" + foreign_target_name + ";Foreign_Target"
-					else:
-						if is_probable_target:
-							printable_name = ">" + tagged_name + ";" + homol_name + ";Homology_Target"
-							prob_ct += 1
-						else:
-							printable_name = ">" + tagged_name + ";Non_Target"
-							off_ct += 1
-				'''
-				
 				#print(printable_name)
 				print(printable_name, file = out)
 				
@@ -855,10 +846,10 @@ class one_protein:
 		return [pos_ct, prob_ct, off_ct]
 		
 	def align_reads(self):
-		if self.use_blast:
-			self.align_reads_blast()
-		else:
-			self.align_reads_diamond()
+		#if self.use_blast:
+		#	self.align_reads_blast()
+		#else:
+		self.align_reads_diamond()
 		
 	def align_reads_diamond(self):
 		#DIAMOND run log
@@ -906,12 +897,28 @@ class one_protein:
 						#"--outfmt", "6", #output as tabular blast
 						"--db", self.db, #use the shared database as the target
 						"--query", self.tagged, #align the tagged reads
-						"--out", self.aln_reads] #send to the pre-named file
+						"--out", self.aln_reads,
+						'--threads', '1'] #send to the pre-named file
 		
-		process = subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
+		#align_command = " ".join(align_command)
+		#print(align_command)
+		#print("")
+		
+		#os.system(align_command)
+		#process = subprocess.call(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
+		process = subprocess.Popen(align_command, stdout = diamond_err, stderr = subprocess.STDOUT)
+		sleep(5)
+		hanging = check_process_started(self.aln_reads)
+		
+		if hanging:
+			print(self.aln_reads, "was hanging and can't continue.")
+			process.terminate()
+		else:
+			process.wait()
 		
 		diamond_err.close()
 		
+		#print("Filtering")
 		fh = open(self.aln_reads)
 		out = open(self.aln_reads + "_filtered.txt", "w")
 		for line in fh:
@@ -959,6 +966,7 @@ class one_protein:
 			
 		os.rename(self.aln_reads + "_filtered.txt", self.aln_reads)
 		
+	#No longer used
 	def align_reads_blast(self):
 		#DIAMOND run log
 		err = open(self.aln_err, "w")
@@ -1051,73 +1059,81 @@ class one_protein:
 		os.rename(self.aln_reads + "_filtered.txt", self.aln_reads)
 		
 	def clean_raw_file(self, file_name, hits):
-		fh = open(file_name)
-		out = open(file_name + "_filtered.txt", "w")
-		defline = fh.readline()
-		while defline:
-			#As long as there is a defline, seq follows.
-			seq = fh.readline()
-			read_id = defline.split("_")[1]
-			if read_id in hits:
-				out.write(defline)
-				out.write(seq)
-			#Read next line
+		if os.path.exists(file_name):
+			fh = open(file_name)
+			out = open(file_name + "_filtered.txt", "w")
 			defline = fh.readline()
-			
-		out.close()
-		fh.close()
-		try:
-			os.remove(file_name)
-		except:
-			pass
-		os.rename(file_name + "_filtered.txt", file_name)
+			while defline:
+				#As long as there is a defline, seq follows.
+				seq = fh.readline()
+				read_id = defline.split("_")[1]
+				if read_id in hits:
+					out.write(defline)
+					out.write(seq)
+				#Read next line
+				defline = fh.readline()
+				
+			out.close()
+			fh.close()
+			try:
+				os.remove(file_name)
+			except:
+				pass
+			os.rename(file_name + "_filtered.txt", file_name)
 		
 	def clean_tagged_file(self, file_name, hits):
-		fh = open(file_name)
-		out = open(file_name + "_filtered.txt", "w")
-		defline = fh.readline()
-		while defline:
-			#As long as there is a defline, seq follows.
-			seq = fh.readline()
-			#The read ID is pre-tagged here
-			read_id = defline.split(";")[0][1:]
-			if read_id in hits:
-				out.write(defline)
-				out.write(seq)
-			#Read next line
+		if os.path.exists(file_name):
+			fh = open(file_name)
+			out = open(file_name + "_filtered.txt", "w")
 			defline = fh.readline()
-			
-		out.close()
-		fh.close()
-		try:
-			os.remove(file_name)
-		except:
-			pass
-		os.rename(file_name + "_filtered.txt", file_name)
+			while defline:
+				#As long as there is a defline, seq follows.
+				seq = fh.readline()
+				#The read ID is pre-tagged here
+				read_id = defline.split(";")[0][1:]
+				if read_id in hits:
+					out.write(defline)
+					out.write(seq)
+				#Read next line
+				defline = fh.readline()
+				
+			out.close()
+			fh.close()
+			try:
+				os.remove(file_name)
+			except:
+				pass
+			os.rename(file_name + "_filtered.txt", file_name)
 	
 	def clean_up_your_mess(self):
 		hits = {}
-		fh = open(self.aln_reads)
-		for line in fh:
-			read_id = line.split("\t")[0].split(";")[0]
-			#The data in the dict doesn't matter.
-			hits[read_id] = 0
-		fh.close()
+		if os.path.exists(self.aln_reads):
+			fh = open(self.aln_reads)
+			for line in fh:
+				read_id = line.split("\t")[0].split(";")[0]
+				#The data in the dict doesn't matter.
+				hits[read_id] = 0
+			fh.close()
 		
 		#How many reads remain.
 		self.final_read_count = len(hits)
 		
 		if self.final_read_count == 0:
 			print("")
-			print(self.base, "had no reads successfully align for alignment length", self.simlen[0])
+			print(self.base, "had no reads successfully align for alignment length", int((self.simlen[0]+self.simlen[1])/2))
 			print("This file and its generated reads will be removed.")
 			print("")
-			os.remove(self.aln_reads)
-			os.remove(self.fasta)
-			os.remove(self.tagged)
+			
+			if os.path.exists(self.aln_reads):
+				os.remove(self.aln_reads)
+			if os.path.exists(self.fasta):
+				os.remove(self.fasta)
+			if os.path.exists(self.tagged):
+				os.remove(self.tagged)
 		else:
-			self.clean_raw_file(self.fasta, hits)
-			self.clean_tagged_file(self.tagged, hits)
+			if not self.keep:
+				self.clean_raw_file(self.fasta, hits)
+				self.clean_tagged_file(self.tagged, hits)
 		
 def build_project(parser, opts):
 	project_directory = opts.dir
@@ -1146,12 +1162,14 @@ def build_project(parser, opts):
 	xll = opts.xll
 	xlu = opts.xlu
 	
+	keep_reads = opts.keep_all
+	
 	coverage = float(opts.cov)
 	snprate = float(opts.snps)
 	insrate = opts.insrate
 	delrate = opts.delrate
 	
-	do_blast = opts.use_blast
+	#do_blast = opts.use_blast
 	dia_sens = opts.dia_sens
 	
 	try:
@@ -1186,12 +1204,24 @@ def build_project(parser, opts):
 					standard = [ml, mu],
 					long = [ll, lu],
 					extra_long = [xll, xlu],
-					use_blast = do_blast)
+					keep_reads = keep_reads)
 	
 	
 	mn.find_probable_targets()
 	mn.run_target_finder()
 	
-	mn.make_prep()
+	
+	mn.make_prep()	
 	mn.run_simulation()
+	
+		#Check to see if the ref/genomes and ref/index dirs are empty. Remove them if they are
+	if os.path.exists("ref/"):
+		if os.path.exists("ref/genome/"):
+			if len(os.listdir("ref/genome/")) == 0:
+				shutil.rmtree("ref/genome/")
+		if os.path.exists("ref/index"):
+			if len(os.listdir("ref/index/")) == 0:
+				shutil.rmtree("ref/index/")
+		if len(os.listdir("ref/")) == 0:
+			shutil.rmtree("ref/")
 
