@@ -273,3 +273,7 @@ This module serves as a utility to allow ROCkOut model developers to more easily
 1. https://www.riverbankcomputing.com/software/pyqt/
 
 
+
+# License
+
+ROCkOut is free software, licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
